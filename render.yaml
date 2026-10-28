@@ -1,0 +1,45 @@
+services:
+  # ─────────────────────────────────────────────────────────────
+  # Suraksha Setu — Node.js Express Backend API Web Service
+  # ─────────────────────────────────────────────────────────────
+  - type: web
+    name: suraksha-setu-backend
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: COOKIE_SECRET
+        generateValue: true
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: ML_SERVICE_URL
+        fromService:
+          type: web
+          name: suraksha-setu-ml-service
+          property: host
+
+  # ─────────────────────────────────────────────────────────────
+  # Suraksha Setu — Python FastAPI ML & Legal Assessment Microservice
+  # ─────────────────────────────────────────────────────────────
+  - type: web
+    name: suraksha-setu-ml-service
+    runtime: python
+    plan: free
+    rootDir: ml-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9

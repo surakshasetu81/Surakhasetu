@@ -38,8 +38,21 @@ connectDB();
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
 // CORS restricted to configured frontend origin
+// CORS configuration: allows configured frontend origins, local dev, same-origin, Render, and Vercel domains
+const allowedOrigins = [
+  env.FRONTEND_ORIGIN,
+  env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+].filter(Boolean);
+
 app.use(cors({
-  origin: env.FRONTEND_ORIGIN || env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com')) return callback(null, true);
+    return callback(null, allowedOrigins[0] || true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -148,22 +161,28 @@ app.use((req, res) => {
   res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
 });
 
-const PORT = env.PORT || 5000;
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Suraksha Setu server running on port ${PORT}`);
-});
 
-// Graceful shutdown
-const handleShutdown = async (signal) => {
-  console.log(`\n${signal} received. Initiating graceful shutdown...`);
-  server.close(async () => {
-    await closeDB();
-    console.log('Server process terminated gracefully.');
-    process.exit(0);
+let server;
+if (!process.env.VERCEL) {
+  const PORT = env.PORT || 5000;
+  server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(🚀 Suraksha Setu server running on port );
   });
-};
 
-process.on('SIGTERM', () => handleShutdown('SIGTERM'));
-process.on('SIGINT', () => handleShutdown('SIGINT'));
+  // Graceful shutdown
+  const handleShutdown = async (signal) => {
+    console.log(\n received. Initiating graceful shutdown...);
+    if (server) {
+      server.close(async () => {
+        await closeDB();
+        console.log('Server process terminated gracefully.');
+        process.exit(0);
+      });
+    }
+  };
+
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
+}
 
 export default app;
