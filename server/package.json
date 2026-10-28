@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
-    "test": "node tests/triage_and_integrity_suite.js && node tests/legal_recommendation_suite.js && node tests/safety_legal_regression_suite.js && node tests/section14_ml_legal_suite.js && node tests/database_regression_suite.js && node tests/backend_integration_suite.js",
+    "test": "node tests/triage_and_integrity_suite.js && node tests/legal_recommendation_suite.js && node tests/safety_legal_regression_suite.js && node tests/section14_ml_legal_suite.js && node tests/database_regression_suite.js && node tests/backend_integration_suite.js && node tests/chatbot_multilingual_suite.js",
+    "test:chatbot": "node tests/chatbot_multilingual_suite.js",
     "test:regression": "node tests/safety_legal_regression_suite.js && node tests/section14_ml_legal_suite.js",
     "test:database": "node tests/database_regression_suite.js",
     "test:triage": "node tests/triage_and_integrity_suite.js",

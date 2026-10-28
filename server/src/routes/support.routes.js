@@ -1,6 +1,7 @@
 import express from 'express';
 import CounsellingBooking from '../models/CounsellingBooking.js';
 import { isDatabaseConnected } from '../config/database.js';
+import { generateChatbotResponse, detectLanguage, EMERGENCY_HELPLINES } from '../services/safetyChatbotEngine.js';
 
 const router = express.Router();
 
@@ -66,6 +67,31 @@ const VERIFIED_SUPPORT_PROVIDERS = [
     isVerified: true,
   },
 ];
+
+// POST /api/support/chatbot - Intelligent Multilingual Women-Safety Assistant
+router.post('/chatbot', (req, res) => {
+  try {
+    const { message, history } = req.body;
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ success: false, message: 'Message is required' });
+    }
+
+    const response = generateChatbotResponse(message.trim(), history || []);
+    return res.json({
+      success: true,
+      ...response,
+      detectedLanguage: detectLanguage(message.trim()),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('[CHATBOT_ERROR]', err.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Safety Assistant encountered a temporary processing issue. For urgent assistance, please contact Women Helpline 181 or Emergency 112 directly.',
+      emergencyHelplines: EMERGENCY_HELPLINES.slice(0, 3),
+    });
+  }
+});
 
 // GET /api/support/counsellors - List verified institutional and national support providers
 router.get('/counsellors', (req, res) => {

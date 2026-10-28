@@ -123,6 +123,27 @@ export const submitAwarenessSurvey = async (topic: string, responses: any) => {
 };
 
 // ─── COUNSELLING & SUPPORT ────────────────────────────────────────────────────
+export interface ChatbotMessageItem {
+  role: 'user' | 'assistant';
+  text: string;
+  isEmergency?: boolean;
+  helplines?: { name: string; number: string; availability?: string }[];
+  officialResources?: { name: string; url: string }[];
+  suggestedQuestions?: string[];
+  detectedLanguage?: string;
+  timestamp?: string;
+}
+
+export interface ChatbotRequestPayload {
+  message: string;
+  history?: { role: 'user' | 'assistant'; text: string }[];
+}
+
+export const sendSafetyChatMessage = async (payload: ChatbotRequestPayload) => {
+  const res = await api.post('/api/support/chatbot', payload);
+  return res.data;
+};
+
 export const getSupportCounsellors = async () => {
   const res = await api.get('/api/support/counsellors');
   return res.data;
