@@ -284,5 +284,35 @@ export const getKnownOrganizations = async (): Promise<{ name: string; type: str
   return res.data?.organizations || [];
 };
 
+
+// ─── SAFETY ASSISTANT CHATBOT ───────────────────────────────────────────────
+export interface OfficialResource {
+  name: string;
+  url: string;
+  phone?: string;
+  description?: string;
+}
+
+export interface AssistantChatResponse {
+  success: boolean;
+  reply: string;
+  language: 'en' | 'hi' | 'hinglish';
+  isEmergency: boolean;
+  intent: string;
+  suggestedActions: string[];
+  officialResources: OfficialResource[];
+  aiConfigured: boolean;
+  source: string;
+}
+
+export const sendAssistantMessage = async (
+  message: string,
+  history: Array<{ role: 'user' | 'assistant'; text: string }> = []
+): Promise<AssistantChatResponse> => {
+  const res = await api.post('/api/assistant/chat', { message, history });
+  return res.data;
+};
+
 export default api;
+
 

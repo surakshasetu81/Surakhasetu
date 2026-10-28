@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
-    "test": "node tests/triage_and_integrity_suite.js && node tests/legal_recommendation_suite.js && node tests/safety_legal_regression_suite.js && node tests/section14_ml_legal_suite.js && node tests/database_regression_suite.js && node tests/backend_integration_suite.js && node tests/organization_verification_suite.js",
+    "test": "node tests/triage_and_integrity_suite.js && node tests/legal_recommendation_suite.js && node tests/safety_legal_regression_suite.js && node tests/section14_ml_legal_suite.js && node tests/database_regression_suite.js && node tests/backend_integration_suite.js && node tests/organization_verification_suite.js && node tests/safety_assistant_suite.js",
     "test:verification": "node tests/organization_verification_suite.js",
     "test:regression": "node tests/safety_legal_regression_suite.js && node tests/section14_ml_legal_suite.js",
     "test:database": "node tests/database_regression_suite.js",
@@ -16,7 +16,8 @@
     "test:integration": "node tests/backend_integration_suite.js",
     "test:atlas": "node tests/verify_atlas_connection.js",
     "test:vault": "node tests/proof_vault_suite.js",
-    "seed:staff": "node src/scripts/seedStaff.js"
+    "seed:staff": "node src/scripts/seedStaff.js",
+    "test:assistant": "node tests/safety_assistant_suite.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
