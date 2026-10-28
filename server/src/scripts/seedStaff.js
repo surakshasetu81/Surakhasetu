@@ -12,25 +12,37 @@ dotenv.config({ path: path.join(__dirname, '..', '..', '.env') });
 const uri = process.env.MONGODB_URI;
 
 async function seed() {
-  console.log('Connecting to MongoDB Atlas...');
+  console.log('Connecting to database...');
   try {
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 8000 });
-    console.log('Connected to MongoDB Atlas.');
+    console.log('Connected to database.');
 
-    // 1. Admin Account
+    // 1. Admin Account (Standard development demo credentials: Admin@12345)
     let admin = await User.findOne({ email: 'admin@surakshasetu.org' });
     if (!admin) {
       admin = await User.create({
         name: 'Internal Committee Admin',
         email: 'admin@surakshasetu.org',
-        password: 'AdminPassword123!',
+        password: 'Admin@12345',
         role: 'admin',
         department: 'Internal Complaints Committee (ICC)',
         isActive: true,
       });
-      console.log('✅ Admin user created: admin@surakshasetu.org');
+      console.log('✅ Admin user created: admin@surakshasetu.org (Password: Admin@12345)');
     } else {
-      console.log('ℹ️ Admin user already exists: admin@surakshasetu.org');
+      const isConfigured = await admin.comparePassword('Admin@12345');
+      if (!isConfigured) {
+        const isLegacy = await admin.comparePassword('AdminPassword123!');
+        if (isLegacy || process.argv.includes('--reset')) {
+          admin.password = 'Admin@12345';
+          await admin.save();
+          console.log('🔄 Admin password updated to standard demo password: Admin@12345');
+        } else {
+          console.log('ℹ️ Admin user already exists with custom password.');
+        }
+      } else {
+        console.log('ℹ️ Admin user already exists with configured password: Admin@12345');
+      }
     }
 
     // 2. Staff Account
@@ -54,7 +66,7 @@ async function seed() {
     console.log('-----------------------------------------');
     console.log('Admin Account:');
     console.log('  Email:    admin@surakshasetu.org');
-    console.log('  Password: AdminPassword123!');
+    console.log('  Password: Admin@12345');
     console.log('  Role:     admin (full committee access)');
     console.log('-----------------------------------------');
     console.log('Staff Account:');

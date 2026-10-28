@@ -10,6 +10,15 @@ export const api = axios.create({
   },
 });
 
+// Interceptor to attach Authorization Bearer token if present
+api.interceptors.request.use(config => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('suraksha_staff_token') : null;
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = "Bearer " + token;
+  }
+  return config;
+});
+
 // Interceptor for standardized error messages
 api.interceptors.response.use(
   response => response,
