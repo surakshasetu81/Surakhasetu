@@ -170,12 +170,12 @@ let server;
 if (!process.env.VERCEL) {
   const PORT = env.PORT || 5000;
   server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(🚀 Suraksha Setu server running on port );
+    console.log(`🚀 Suraksha Setu server running on port ${PORT}`);
   });
 
   // Graceful shutdown
   const handleShutdown = async (signal) => {
-    console.log(\n received. Initiating graceful shutdown...);
+    console.log(`\n${signal} received. Initiating graceful shutdown...`);
     if (server) {
       server.close(async () => {
         await closeDB();
