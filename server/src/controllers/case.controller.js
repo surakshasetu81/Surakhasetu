@@ -112,6 +112,8 @@ export const submitCase = async (req, res) => {
       isUrgent,
       safetyIndicators = {},
       organizationVerification = {},
+      employeeOrCollegeId,
+      organizationId,
     } = req.body;
 
     const ALLOWED_NEW_REPORT_CATEGORIES = [
@@ -309,6 +311,8 @@ export const submitCase = async (req, res) => {
     }
     if (incidentDate) caseData.incidentDate = new Date(incidentDate);
     if (location) caseData.location = location;
+    const optionalId = (employeeOrCollegeId || organizationId || '').toString().trim();
+    if (optionalId) caseData.employeeOrCollegeId = optionalId;
 
     const requestId = req.headers['x-request-id'] || `req-${crypto.randomBytes(4).toString('hex')}`;
 

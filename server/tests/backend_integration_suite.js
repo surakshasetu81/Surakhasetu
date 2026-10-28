@@ -176,12 +176,14 @@ runTest('Checkpoint 16: Public tracking endpoint omits confidential committee no
     incidentCategory: 'sexual_harassment',
     description: 'Confidential details of complaint.',
     internalNotes: 'SECRET_IC_INVESTIGATION_INTERVIEW_SCHEDULED_NEXT_WEEK',
+    employeeOrCollegeId: 'EMP-TEST-99',
   });
 
   const publicData = sampleCase.toPublicJSON();
   assert.strictEqual(publicData.reporterEmail, undefined, 'Public tracking must not disclose reporter email');
   assert.strictEqual(publicData.reporterPhone, undefined, 'Public tracking must not disclose reporter phone');
   assert.strictEqual(publicData.internalNotes, undefined, 'Public tracking must not disclose internal notes');
+  assert.strictEqual(publicData.employeeOrCollegeId, undefined, 'Public tracking must not disclose employee/college ID');
 });
 
 // 17. ML service failure does not destroy an otherwise valid report

@@ -207,6 +207,7 @@ const caseSchema = new mongoose.Schema({
   assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   evidence: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Evidence' }],
   isUrgent: { type: Boolean, default: false },
+  employeeOrCollegeId: { type: String, trim: true, select: false },
   internalNotes: { type: String, select: false },
 
   // AI/ML, Safety Safeguards & Integrity Fields

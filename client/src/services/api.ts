@@ -52,6 +52,7 @@ export interface ReportSubmissionPayload {
   preferredLanguage?: string;
   supportRequired?: string[];
   isUrgent?: boolean;
+  employeeOrCollegeId?: string;
   organizationVerification?: OrganizationVerificationPayload;
 }
 
