@@ -58,14 +58,18 @@ export const submitReport = async (payload: ReportSubmissionPayload, files: File
 };
 
 // ─── CASE TRACKING ────────────────────────────────────────────────────────────
-export const trackCase = async (caseId: string, recoveryCode: string, simulateOffline = false) => {
+export const trackCase = async (reportIdOrCaseId: string, recoveryKeyOrCode: string, simulateOffline = false) => {
   const headers: Record<string, string> = {};
   if (simulateOffline) {
     headers['x-simulate-offline'] = 'true';
   }
+  const cleanId = (reportIdOrCaseId || '').trim().toUpperCase();
+  const cleanKey = (recoveryKeyOrCode || '').trim().toUpperCase();
   const res = await api.post('/api/cases/track-lookup', {
-    caseId: caseId.trim().toUpperCase(),
-    recoveryCode: recoveryCode.trim().toUpperCase(),
+    caseId: cleanId,
+    reportId: cleanId,
+    recoveryCode: cleanKey,
+    recoveryKey: cleanKey,
   }, { headers });
   return res.data;
 };

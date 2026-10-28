@@ -412,7 +412,7 @@ function SuccessScreen({ result }: { result: SubmissionResult }) {
       >
         <div style={{ marginBottom: 18 }}>
           <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: 6, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Case ID
+            Report ID (Case Reference)
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <code
@@ -437,7 +437,7 @@ function SuccessScreen({ result }: { result: SubmissionResult }) {
 
         <div>
           <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: 6, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Recovery Code
+            Recovery Key
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <code
@@ -476,13 +476,13 @@ function SuccessScreen({ result }: { result: SubmissionResult }) {
       >
         <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 2 }} />
         <span>
-          <strong>Important:</strong> Please store your Case ID and Recovery Code in a safe place. For confidentiality and security, they will not be re-displayed.
+          <strong>Important:</strong> Please store your Report ID and Recovery Key in a safe place. For confidentiality and security, they will not be re-displayed.
         </span>
       </div>
 
       <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 12 }}>
-        <a href="/track" className="btn btn-primary">
-          Track This Case Now
+        <a href={`/track?reportId=${encodeURIComponent(result.caseId)}`} className="btn btn-primary">
+          Track This Report Now
         </a>
         <a href="/" className="btn btn-secondary">
           Return Home

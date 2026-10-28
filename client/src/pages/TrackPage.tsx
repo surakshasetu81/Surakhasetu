@@ -3,15 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Search, Clock, CheckCircle, AlertCircle, Info, Shield,
-  ArrowLeft, RefreshCw, Key, UserCheck, Lock,
-  PhoneCall, Scale, Eye, EyeOff
+  ArrowLeft, RefreshCw, Lock, PhoneCall, Scale, Eye, EyeOff
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import {
-  trackCase as apiTrackCase,
-  getUserCases as apiGetUserCases,
-  getUserCaseDetails as apiGetUserCaseDetails
-} from '../services/api';
+import { trackCase as apiTrackCase } from '../services/api';
 
 // ─── STATUS CONFIGURATION ───────────────────────────────────────────────────
 interface StatusMeta {
@@ -114,32 +108,18 @@ interface TimelineUpdate {
   createdAt: string;
 }
 
-interface UserCaseSummary {
-  caseId: string;
-  incidentCategory: string;
-  incidentDate?: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  isUrgent?: boolean;
-}
-
-type TrackingMode = 'select' | 'anonymous' | 'account';
-
 // ─── MAIN COMPONENT ─────────────────────────────────────────────────────────
 export default function TrackPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
 
-  // Mode & Form state
-  const [mode, setMode] = useState<TrackingMode>('select');
-  const [caseId, setCaseId] = useState('');
-  const [recoveryCode, setRecoveryCode] = useState('');
-  const [showCode, setShowCode] = useState(false);
+  // Form inputs
+  const [reportId, setReportId] = useState('');
+  const [recoveryKey, setRecoveryKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
 
   // Validation & Error states
-  const [validationErrors, setValidationErrors] = useState<{ caseId?: string; recoveryCode?: string }>({});
+  const [validationErrors, setValidationErrors] = useState<{ reportId?: string; recoveryKey?: string }>({});
   const [generalError, setGeneralError] = useState('');
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -149,72 +129,41 @@ export default function TrackPage() {
   const [caseData, setCaseData] = useState<CaseData | null>(null);
   const [timeline, setTimeline] = useState<TimelineUpdate[]>([]);
 
-  // Account Cases state
-  const [accountCases, setAccountCases] = useState<UserCaseSummary[]>([]);
-  const [accountLoading, setAccountLoading] = useState(false);
-  const [accountError, setAccountError] = useState('');
-
-  // Handle URL query pre-fills (e.g. ?caseId=SS-... or ?mode=anonymous)
+  // Handle URL query pre-fills (e.g. ?reportId=... or ?caseId=...)
   useEffect(() => {
-    const qCaseId = searchParams.get('caseId');
-    const qMode = searchParams.get('mode');
-    if (qCaseId) {
-      setCaseId(qCaseId.trim().toUpperCase());
-      setMode('anonymous');
-    } else if (qMode === 'account') {
-      setMode('account');
-    } else if (qMode === 'anonymous') {
-      setMode('anonymous');
+    const qReportId = searchParams.get('reportId') || searchParams.get('caseId');
+    const qKey = searchParams.get('recoveryKey') || searchParams.get('recoveryCode');
+    if (qReportId) {
+      setReportId(qReportId.trim().toUpperCase());
+    }
+    if (qKey) {
+      setRecoveryKey(qKey.trim().toUpperCase());
     }
   }, [searchParams]);
 
-  const loadAccountCases = async () => {
-    setAccountLoading(true);
-    setAccountError('');
-    try {
-      const res = await apiGetUserCases();
-      setAccountCases(res.cases || []);
-    } catch (err: any) {
-      if (err?.response?.status === 503) {
-        setAccountError('Case tracking is temporarily unavailable. Please try again.');
-      } else {
-        setAccountError('Unable to retrieve authorized account cases. Please check your connection.');
-      }
-    } finally {
-      setAccountLoading(false);
-    }
-  };
-
-  // Load account cases when user enters account mode while authenticated
-  useEffect(() => {
-    if (mode === 'account' && user) {
-      loadAccountCases();
-    }
-  }, [mode, user]);
-
-  // ─── ANONYMOUS FORM VALIDATION ─────────────────────────────────────────────
+  // ─── INPUT VALIDATION ─────────────────────────────────────────────────────
   const validateInputs = () => {
-    const errors: { caseId?: string; recoveryCode?: string } = {};
-    const cleanId = caseId.trim().toUpperCase();
-    const cleanCode = recoveryCode.trim().toUpperCase();
+    const errors: { reportId?: string; recoveryKey?: string } = {};
+    const cleanId = reportId.trim().toUpperCase();
+    const cleanKey = recoveryKey.trim().toUpperCase();
 
     if (!cleanId) {
-      errors.caseId = 'Please enter your Case ID.';
-    } else if (!cleanId.startsWith('SS-') || cleanId.length < 8) {
-      errors.caseId = 'Please enter a valid Case ID starting with SS- (e.g., SS-TEST2026-A1B2C3).';
+      errors.reportId = 'Please enter your Report ID.';
+    } else if (cleanId.length < 5) {
+      errors.reportId = 'Please enter a valid Report ID (e.g. SS-TEST2026-A1B2C3).';
     }
 
-    if (!cleanCode) {
-      errors.recoveryCode = 'Please enter your Recovery Code.';
-    } else if (cleanCode.length !== 12 || !/^[A-F0-9]{12}$/.test(cleanCode)) {
-      errors.recoveryCode = 'Please enter a valid 12-character hexadecimal Recovery Code (e.g., A1B2C3D4E5F6).';
+    if (!cleanKey) {
+      errors.recoveryKey = 'Please enter your Recovery Key.';
+    } else if (cleanKey.length < 6) {
+      errors.recoveryKey = 'Please enter a valid Recovery Key.';
     }
 
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // ─── ANONYMOUS SUBMIT HANDLER ──────────────────────────────────────────────
+  // ─── TRACK SUBMIT HANDLER ─────────────────────────────────────────────────
   const handleTrackSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (loading) return;
@@ -227,22 +176,22 @@ export default function TrackPage() {
     }
 
     setLoading(true);
-    const cleanId = caseId.trim().toUpperCase();
-    const cleanCode = recoveryCode.trim().toUpperCase();
+    const cleanId = reportId.trim().toUpperCase();
+    const cleanKey = recoveryKey.trim().toUpperCase();
 
     try {
-      const data = await apiTrackCase(cleanId, cleanCode);
+      const data = await apiTrackCase(cleanId, cleanKey);
       if (data?.case) {
         setCaseData(data.case);
         setTimeline(data.timeline || []);
         setGeneralError('');
       } else {
-        setGeneralError('Unable to verify these details. Please check your Case ID and Recovery Code and try again.');
+        setGeneralError('Unable to verify these details. Please check your Report ID and Recovery Key and try again.');
       }
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 401 || status === 404) {
-        setGeneralError('Unable to verify these details. Please check your Case ID and Recovery Code and try again.');
+        setGeneralError('Unable to verify these details. Please check your Report ID and Recovery Key and try again.');
       } else if (status === 503 || !err.response) {
         setGeneralError('Case tracking is temporarily unavailable. Please try again.');
       } else {
@@ -253,44 +202,21 @@ export default function TrackPage() {
     }
   };
 
-  // ─── SELECT ACCOUNT CASE DETAILS ───────────────────────────────────────────
-  const handleSelectAccountCase = async (selectedCaseId: string) => {
-    setAccountLoading(true);
-    setAccountError('');
-    try {
-      const data = await apiGetUserCaseDetails(selectedCaseId);
-      if (data?.case) {
-        setCaseData(data.case);
-        setTimeline(data.timeline || []);
-      } else {
-        setAccountError('Unable to load case details. Please try again.');
-      }
-    } catch {
-      setAccountError('Failed to fetch case details. Please try again.');
-    } finally {
-      setAccountLoading(false);
-    }
-  };
-
-  // ─── BUTTON ACTIONS FOR CASE RESULTS VIEW ──────────────────────────────────
-  // Button A: Track Another Case
+  // ─── ACTION HANDLERS ──────────────────────────────────────────────────────
   const handleTrackAnother = () => {
-    setCaseId('');
-    setRecoveryCode('');
+    setReportId('');
+    setRecoveryKey('');
     setCaseData(null);
     setTimeline([]);
     setGeneralError('');
     setValidationErrors({});
     setRefreshSuccess(false);
-    setMode('select');
   };
 
-  // Button B: Back to Home
   const handleBackHome = () => {
     navigate('/');
   };
 
-  // Button C: Refresh Status
   const handleRefreshStatus = async () => {
     if (!caseData || refreshing) return;
     setRefreshing(true);
@@ -298,22 +224,14 @@ export default function TrackPage() {
     setGeneralError('');
 
     try {
-      if (caseData.isAnonymous && recoveryCode) {
-        const data = await apiTrackCase(caseData.caseId, recoveryCode.trim().toUpperCase());
-        if (data?.case) {
-          setCaseData(data.case);
-          setTimeline(data.timeline || []);
-          setRefreshSuccess(true);
-          setTimeout(() => setRefreshSuccess(false), 3000);
-        }
-      } else if (user) {
-        const data = await apiGetUserCaseDetails(caseData.caseId);
-        if (data?.case) {
-          setCaseData(data.case);
-          setTimeline(data.timeline || []);
-          setRefreshSuccess(true);
-          setTimeout(() => setRefreshSuccess(false), 3000);
-        }
+      const cleanId = caseData.caseId;
+      const cleanKey = recoveryKey.trim().toUpperCase();
+      const data = await apiTrackCase(cleanId, cleanKey);
+      if (data?.case) {
+        setCaseData(data.case);
+        setTimeline(data.timeline || []);
+        setRefreshSuccess(true);
+        setTimeout(() => setRefreshSuccess(false), 3000);
       }
     } catch {
       setGeneralError('Unable to refresh status. Please verify your connection.');
@@ -370,12 +288,12 @@ export default function TrackPage() {
             style={{
               color: 'var(--color-text-secondary)',
               fontSize: '1rem',
-              maxWidth: 540,
+              maxWidth: 580,
               margin: '0 auto',
               lineHeight: 1.6,
             }}
           >
-            Securely check the status and updates of your submitted report.
+            Securely track your submitted report using your Report ID and Recovery Key.
           </p>
         </div>
 
@@ -407,7 +325,7 @@ export default function TrackPage() {
                 id="track-another-btn"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                <ArrowLeft size={15} /> Track Another Case
+                <ArrowLeft size={15} /> Track Another Report
               </button>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -502,7 +420,7 @@ export default function TrackPage() {
                       marginBottom: 4,
                     }}
                   >
-                    Verified Case Reference
+                    Verified Report Reference
                   </div>
                   <h2
                     style={{
@@ -928,7 +846,7 @@ export default function TrackPage() {
                 className="btn btn-secondary"
                 id="bottom-track-another-btn"
               >
-                <Search size={16} /> Track Another Case
+                <Search size={16} /> Track Another Report
               </button>
               <button
                 type="button"
@@ -942,569 +860,243 @@ export default function TrackPage() {
           </motion.div>
         ) : (
           /* ─────────────────────────────────────────────────────────────── */
-          /* VIEW B: INITIAL METHOD SELECTION & TRACKING FORMS              */
+          /* VIEW B: UNIFIED CASE TRACKING FORM                             */
           /* ─────────────────────────────────────────────────────────────── */
-          <div>
-            {/* Top Navigation / Breadcrumb if inside a sub-mode */}
-            {mode !== 'select' && (
-              <div style={{ marginBottom: 20 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('select');
-                    setGeneralError('');
-                    setValidationErrors({});
-                  }}
-                  className="btn btn-secondary btn-sm"
-                  id="back-to-options-btn"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                >
-                  <ArrowLeft size={14} /> Back to Tracking Options
-                </button>
-              </div>
-            )}
-
-            {/* ─── OPTION SELECTION CARDS (WHEN IN SELECT MODE) ──────────── */}
-            {mode === 'select' && (
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))',
-                  gap: 24,
-                  marginBottom: 32,
-                }}
-              >
-                {/* Option A: Anonymous Report */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            style={{ maxWidth: 560, margin: '0 auto' }}
+          >
+            {/* Centered Track Card */}
+            <div
+              className="card"
+              style={{
+                padding: '36px 32px',
+                marginBottom: 24,
+                boxShadow: 'var(--shadow-md, 0 4px 14px rgba(0,0,0,0.06))',
+              }}
+              id="unified-track-card"
+            >
+              <div style={{ textAlign: 'center', marginBottom: 28 }}>
                 <div
-                  className="card"
                   style={{
-                    padding: 32,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    border: '2px solid transparent',
-                    transition: 'border-color 0.2s, box-shadow 0.2s',
-                  }}
-                  id="option-anonymous-card"
-                >
-                  <div>
-                    <div
-                      style={{
-                        width: 52,
-                        height: 52,
-                        borderRadius: 14,
-                        background: 'var(--color-soft-pink)',
-                        color: 'var(--color-primary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 20,
-                      }}
-                    >
-                      <Key size={24} />
-                    </div>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: 10 }}>
-                      Track an Anonymous Report
-                    </h2>
-                    <p
-                      style={{
-                        fontSize: '0.9rem',
-                        color: 'var(--color-text-secondary)',
-                        lineHeight: 1.6,
-                        marginBottom: 24,
-                      }}
-                    >
-                      Enter the Case ID and Recovery Code provided after your anonymous report was successfully submitted.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('anonymous');
-                      setGeneralError('');
-                    }}
-                    className="btn btn-primary"
-                    id="track-anonymous-option-btn"
-                    style={{ width: '100%' }}
-                  >
-                    Track Anonymous Report
-                  </button>
-                </div>
-
-                {/* Option B: Identified Report */}
-                <div
-                  className="card"
-                  style={{
-                    padding: 32,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                  }}
-                  id="option-account-card"
-                >
-                  <div>
-                    <div
-                      style={{
-                        width: 52,
-                        height: 52,
-                        borderRadius: 14,
-                        background: 'rgba(37, 99, 235, 0.1)',
-                        color: '#2563EB',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 20,
-                      }}
-                    >
-                      <UserCheck size={24} />
-                    </div>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: 10 }}>
-                      Track an Identified Report
-                    </h2>
-                    <p
-                      style={{
-                        fontSize: '0.9rem',
-                        color: 'var(--color-text-secondary)',
-                        lineHeight: 1.6,
-                        marginBottom: 24,
-                      }}
-                    >
-                      Access your submitted reports through your authorized user account.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('account');
-                      setGeneralError('');
-                    }}
-                    className="btn btn-secondary"
-                    id="continue-with-account-btn"
-                    style={{ width: '100%' }}
-                  >
-                    Continue with Account
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-            {/* ─── OPTION A: ANONYMOUS TRACKING FORM ──────────────────────── */}
-            {mode === 'anonymous' && (
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <div className="card" style={{ padding: '32px', marginBottom: 24 }}>
-                  <div style={{ marginBottom: 24 }}>
-                    <h2 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: 6 }}>
-                      Anonymous Case Verification
-                    </h2>
-                    <p style={{ fontSize: '0.88rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                      Please provide your Case ID and 12-character Recovery Code to unlock authorized case progress.
-                    </p>
-                  </div>
-
-                  {/* General Error Alert */}
-                  {generalError && (
-                    <div
-                      style={{
-                        padding: '12px 16px',
-                        borderRadius: 10,
-                        background: 'rgba(217, 45, 53, 0.08)',
-                        border: '1px solid rgba(217, 45, 53, 0.3)',
-                        color: 'var(--color-emergency)',
-                        fontSize: '0.88rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        marginBottom: 20,
-                      }}
-                      id="track-error-alert"
-                      role="alert"
-                    >
-                      <AlertCircle size={18} style={{ flexShrink: 0 }} />
-                      <span>{generalError}</span>
-                    </div>
-                  )}
-
-                  <form onSubmit={handleTrackSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                    {/* Case ID field */}
-                    <div>
-                      <label
-                        htmlFor="case-id-input"
-                        className="form-label"
-                        style={{ display: 'block', fontWeight: 700, fontSize: '0.88rem', marginBottom: 6 }}
-                      >
-                        Case ID <span style={{ color: 'var(--color-primary)' }}>*</span>
-                      </label>
-                      <input
-                        id="case-id-input"
-                        name="caseId"
-                        type="text"
-                        value={caseId}
-                        onChange={e => {
-                          setCaseId(e.target.value.toUpperCase());
-                          if (validationErrors.caseId) {
-                            setValidationErrors(prev => ({ ...prev, caseId: undefined }));
-                          }
-                        }}
-                        placeholder="e.g. SS-TEST2026-A1B2C3"
-                        className="form-input"
-                        style={{
-                          textTransform: 'uppercase',
-                          borderColor: validationErrors.caseId ? 'var(--color-emergency)' : undefined,
-                        }}
-                        autoComplete="off"
-                        autoCapitalize="characters"
-                        aria-invalid={!!validationErrors.caseId}
-                        aria-describedby={validationErrors.caseId ? 'case-id-error' : 'case-id-hint'}
-                        disabled={loading}
-                      />
-                      {validationErrors.caseId ? (
-                        <p id="case-id-error" style={{ color: 'var(--color-emergency)', fontSize: '0.78rem', marginTop: 4 }}>
-                          {validationErrors.caseId}
-                        </p>
-                      ) : (
-                        <p id="case-id-hint" style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: 4 }}>
-                          Case ID begins with <code>SS-</code> as shown on your submission receipt.
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Recovery Code field */}
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <label
-                          htmlFor="recovery-code-input"
-                          className="form-label"
-                          style={{ fontWeight: 700, fontSize: '0.88rem', margin: 0 }}
-                        >
-                          Recovery Code <span style={{ color: 'var(--color-primary)' }}>*</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setShowCode(!showCode)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--color-text-secondary)',
-                            fontSize: '0.78rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {showCode ? <EyeOff size={13} /> : <Eye size={13} />}
-                          {showCode ? 'Hide Code' : 'Show Code'}
-                        </button>
-                      </div>
-
-                      <div style={{ position: 'relative' }}>
-                        <input
-                          id="recovery-code-input"
-                          name="recoveryCode"
-                          type={showCode ? 'text' : 'password'}
-                          value={recoveryCode}
-                          onChange={e => {
-                            setRecoveryCode(e.target.value.toUpperCase());
-                            if (validationErrors.recoveryCode) {
-                              setValidationErrors(prev => ({ ...prev, recoveryCode: undefined }));
-                            }
-                          }}
-                          placeholder="12-character code (e.g. A1B2C3D4E5F6)"
-                          className="form-input"
-                          maxLength={12}
-                          style={{
-                            textTransform: 'uppercase',
-                            letterSpacing: showCode ? '0.12em' : 'normal',
-                            fontFamily: 'monospace',
-                            borderColor: validationErrors.recoveryCode ? 'var(--color-emergency)' : undefined,
-                          }}
-                          autoComplete="off"
-                          aria-invalid={!!validationErrors.recoveryCode}
-                          aria-describedby={validationErrors.recoveryCode ? 'recovery-code-error' : 'recovery-code-hint'}
-                          disabled={loading}
-                        />
-                      </div>
-                      {validationErrors.recoveryCode ? (
-                        <p id="recovery-code-error" style={{ color: 'var(--color-emergency)', fontSize: '0.78rem', marginTop: 4 }}>
-                          {validationErrors.recoveryCode}
-                        </p>
-                      ) : (
-                        <p id="recovery-code-hint" style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: 4 }}>
-                          12-character alphanumeric code given to you after submission.
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Primary Submit Button */}
-                    <button
-                      type="submit"
-                      className="btn btn-primary btn-lg"
-                      disabled={loading}
-                      id="track-case-btn"
-                      style={{
-                        alignSelf: 'center',
-                        minWidth: 220,
-                        marginTop: 8,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 8,
-                      }}
-                    >
-                      {loading ? (
-                        <>
-                          <RefreshCw size={17} className="animate-spin" />
-                          <span>Verifying your case details...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Search size={17} />
-                          <span>Track My Case</span>
-                        </>
-                      )}
-                    </button>
-                  </form>
-                </div>
-
-                {/* Recovery Code Help Note */}
-                <div
-                  className="card"
-                  style={{
-                    padding: '20px 24px',
-                    borderRadius: 14,
+                    width: 58,
+                    height: 58,
+                    borderRadius: 16,
                     background: 'var(--color-soft-pink)',
-                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 16px',
                   }}
-                  id="recovery-help-box"
                 >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                    <Lock size={18} color="var(--color-primary)" style={{ flexShrink: 0, marginTop: 2 }} />
-                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
-                      <p style={{ fontWeight: 700, color: 'var(--color-primary)', margin: '0 0 6px' }}>
-                        Important Security Notice Regarding Your Recovery Code
-                      </p>
-                      <p style={{ margin: '0 0 8px' }}>
-                        Your Recovery Code was provided after your anonymous report was successfully submitted. Keep it secure and do not share it with others.
-                      </p>
-                      <p style={{ margin: 0, fontSize: '0.82rem' }}>
-                        Because Suraksha Setu uses one-way cryptographic hashing to guarantee absolute anonymity, recovery codes cannot be reset or recovered by system administrators. If you have misplaced your Recovery Code and require assistance regarding your filing, please contact your organization&apos;s Internal Complaints Committee (ICC) or Designated Officer directly.
-                      </p>
-                    </div>
-                  </div>
+                  <Shield size={28} />
                 </div>
-              </motion.div>
-            )}
+                <h2 style={{ fontSize: '1.45rem', fontWeight: 800, marginBottom: 8, color: 'var(--color-text-main)' }}>
+                  Track Your Report
+                </h2>
+                <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: 1.55, margin: '0 auto', maxWidth: 440 }}>
+                  Enter the Report ID and Recovery Key you received after submitting your report.
+                </p>
+              </div>
 
-            {/* ─── OPTION B: IDENTIFIED REPORT FLOW ───────────────────────── */}
-            {mode === 'account' && (
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                {user ? (
-                  /* Authenticated User View */
-                  <div className="card" style={{ padding: '32px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-                      <div>
-                        <h2 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 4px' }}>
-                          Your Authorized Cases
-                        </h2>
-                        <p style={{ fontSize: '0.88rem', color: 'var(--color-text-secondary)', margin: 0 }}>
-                          Signed in as <strong>{user.email}</strong> ({user.name})
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={loadAccountCases}
-                        disabled={accountLoading}
-                        className="btn btn-secondary btn-sm"
-                        id="refresh-account-cases-btn"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                      >
-                        <RefreshCw size={14} className={accountLoading ? 'animate-spin' : ''} />
-                        Refresh List
-                      </button>
-                    </div>
+              {/* General Error Alert */}
+              {generalError && (
+                <div
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    background: 'rgba(217, 45, 53, 0.08)',
+                    border: '1px solid rgba(217, 45, 53, 0.3)',
+                    color: 'var(--color-emergency)',
+                    fontSize: '0.88rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginBottom: 20,
+                  }}
+                  id="track-error-alert"
+                  role="alert"
+                >
+                  <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                  <span>{generalError}</span>
+                </div>
+              )}
 
-                    {accountError && (
-                      <div
-                        style={{
-                          padding: '12px 14px',
-                          borderRadius: 10,
-                          background: 'rgba(217, 45, 53, 0.08)',
-                          border: '1px solid rgba(217, 45, 53, 0.3)',
-                          color: 'var(--color-emergency)',
-                          fontSize: '0.875rem',
-                          marginBottom: 16,
-                        }}
-                      >
-                        {accountError}
-                      </div>
-                    )}
+              <form onSubmit={handleTrackSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* 1. Report ID input */}
+                <div>
+                  <label
+                    htmlFor="report-id-input"
+                    className="form-label"
+                    style={{ display: 'block', fontWeight: 700, fontSize: '0.88rem', marginBottom: 6 }}
+                  >
+                    Report ID <span style={{ color: 'var(--color-primary)' }}>*</span>
+                  </label>
+                  <input
+                    id="report-id-input"
+                    name="reportId"
+                    type="text"
+                    value={reportId}
+                    onChange={e => {
+                      setReportId(e.target.value.toUpperCase());
+                      if (validationErrors.reportId) {
+                        setValidationErrors(prev => ({ ...prev, reportId: undefined }));
+                      }
+                    }}
+                    placeholder="Enter your Report ID"
+                    className="form-input"
+                    style={{
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      fontWeight: 600,
+                      borderColor: validationErrors.reportId ? 'var(--color-emergency)' : undefined,
+                    }}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    aria-invalid={!!validationErrors.reportId}
+                    aria-describedby={validationErrors.reportId ? 'report-id-error' : 'report-id-hint'}
+                    disabled={loading}
+                  />
+                  {validationErrors.reportId ? (
+                    <p id="report-id-error" style={{ color: 'var(--color-emergency)', fontSize: '0.78rem', marginTop: 4 }}>
+                      {validationErrors.reportId}
+                    </p>
+                  ) : (
+                    <p id="report-id-hint" style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                      e.g., SS-TEST2026-A1B2C3 (from your submission confirmation)
+                    </p>
+                  )}
+                </div>
 
-                    {accountLoading ? (
-                      <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--color-text-secondary)' }}>
-                        <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 12px' }} />
-                        <p style={{ margin: 0 }}>Retrieving your authorized cases...</p>
-                      </div>
-                    ) : accountCases.length === 0 ? (
-                      <div
-                        style={{
-                          textAlign: 'center',
-                          padding: '36px 20px',
-                          background: 'var(--color-bg-secondary)',
-                          borderRadius: 12,
-                        }}
-                        id="no-account-cases"
-                      >
-                        <Shield size={32} style={{ margin: '0 auto 12px', color: 'var(--color-text-secondary)', opacity: 0.6 }} />
-                        <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: 6 }}>
-                          No identified reports found for your account.
-                        </h3>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: 20 }}>
-                          If you submitted an anonymous complaint, it is linked only to your Case ID and Recovery Code.
-                        </p>
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
-                          <button
-                            type="button"
-                            onClick={() => setMode('anonymous')}
-                            className="btn btn-secondary btn-sm"
-                          >
-                            Track Anonymous Report
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => navigate('/report')}
-                            className="btn btn-primary btn-sm"
-                          >
-                            File a New Report
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {accountCases.map(c => {
-                          const cCfg = STATUS_CONFIG[c.status] || STATUS_CONFIG.submitted;
-                          return (
-                            <div
-                              key={c.caseId}
-                              style={{
-                                padding: '16px 20px',
-                                borderRadius: 12,
-                                background: 'var(--color-bg-secondary)',
-                                border: '1px solid var(--color-border)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                flexWrap: 'wrap',
-                                gap: 12,
-                              }}
-                            >
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                                  <span style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--color-primary)' }}>
-                                    {c.caseId}
-                                  </span>
-                                  <span
-                                    style={{
-                                      fontSize: '0.75rem',
-                                      padding: '2px 8px',
-                                      borderRadius: 9999,
-                                      background: cCfg.badgeBg,
-                                      color: cCfg.color,
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    {cCfg.label}
-                                  </span>
-                                </div>
-                                <p style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', margin: 0 }}>
-                                  {CATEGORY_LABELS[c.incidentCategory] || c.incidentCategory} • Filed on{' '}
-                                  {new Date(c.createdAt).toLocaleDateString('en-IN')}
-                                </p>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() => handleSelectAccountCase(c.caseId)}
-                                className="btn btn-primary btn-sm"
-                                id={`view-case-${c.caseId}`}
-                              >
-                                View Progress
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* Unauthenticated Notice (Honest flow as required by Section 2) */
-                  <div className="card" style={{ padding: '36px 32px', textAlign: 'center' }}>
-                    <div
+                {/* 2. Recovery Key input */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <label
+                      htmlFor="recovery-key-input"
+                      className="form-label"
+                      style={{ fontWeight: 700, fontSize: '0.88rem', margin: 0 }}
+                    >
+                      Recovery Key <span style={{ color: 'var(--color-primary)' }}>*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowKey(!showKey)}
                       style={{
-                        width: 58,
-                        height: 58,
-                        borderRadius: 16,
-                        background: 'rgba(37, 99, 235, 0.1)',
-                        color: '#2563EB',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-text-secondary)',
+                        fontSize: '0.78rem',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 16px',
+                        gap: 4,
+                        cursor: 'pointer',
                       }}
                     >
-                      <UserCheck size={28} />
-                    </div>
-                    <h2 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: 10 }}>
-                      Authentication Required for Account-Based Tracking
-                    </h2>
-                    <p
-                      style={{
-                        fontSize: '0.9rem',
-                        color: 'var(--color-text-secondary)',
-                        lineHeight: 1.6,
-                        maxWidth: 520,
-                        margin: '0 auto 24px',
-                      }}
-                    >
-                      Identified case tracking requires sign-in with an authorized organizational account.
-                      Public complainants who submitted an anonymous report do not need an account — you can track your filing instantly using your Case ID and Recovery Code.
-                    </p>
-
-                    <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 14 }}>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/staff-login?returnTo=/track%3Fmode%3Daccount')}
-                        className="btn btn-primary"
-                        id="sign-in-account-btn"
-                      >
-                        Sign In with Authorized Account
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMode('anonymous')}
-                        className="btn btn-secondary"
-                        id="switch-to-anonymous-btn"
-                      >
-                        Track Anonymous Report
-                      </button>
-                    </div>
+                      {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
+                      {showKey ? 'Hide Key' : 'Show Key'}
+                    </button>
                   </div>
-                )}
-              </motion.div>
-            )}
-          </div>
+
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="recovery-key-input"
+                      name="recoveryKey"
+                      type={showKey ? 'text' : 'password'}
+                      value={recoveryKey}
+                      onChange={e => {
+                        setRecoveryKey(e.target.value.toUpperCase());
+                        if (validationErrors.recoveryKey) {
+                          setValidationErrors(prev => ({ ...prev, recoveryKey: undefined }));
+                        }
+                      }}
+                      placeholder="Enter your Recovery Key"
+                      className="form-input"
+                      maxLength={32}
+                      style={{
+                        textTransform: 'uppercase',
+                        letterSpacing: showKey ? '0.12em' : 'normal',
+                        fontFamily: 'monospace',
+                        fontWeight: 600,
+                        borderColor: validationErrors.recoveryKey ? 'var(--color-emergency)' : undefined,
+                      }}
+                      autoComplete="off"
+                      aria-invalid={!!validationErrors.recoveryKey}
+                      aria-describedby={validationErrors.recoveryKey ? 'recovery-key-error' : 'recovery-key-hint'}
+                      disabled={loading}
+                    />
+                  </div>
+                  {validationErrors.recoveryKey ? (
+                    <p id="recovery-key-error" style={{ color: 'var(--color-emergency)', fontSize: '0.78rem', marginTop: 4 }}>
+                      {validationErrors.recoveryKey}
+                    </p>
+                  ) : (
+                    <p id="recovery-key-hint" style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                      Confidential alphanumeric key provided upon filing.
+                    </p>
+                  )}
+                </div>
+
+                {/* Primary Pink Track Button */}
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-lg"
+                  disabled={loading}
+                  id="track-report-btn"
+                  style={{
+                    width: '100%',
+                    marginTop: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    fontWeight: 700,
+                  }}
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw size={17} className="animate-spin" />
+                      <span>Verifying report credentials...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Search size={17} />
+                      <span>Track My Report</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+
+            {/* Recovery Key Security Notice */}
+            <div
+              className="card"
+              style={{
+                padding: '20px 24px',
+                borderRadius: 14,
+                background: 'var(--color-soft-pink)',
+                border: '1px solid var(--color-border)',
+              }}
+              id="recovery-security-box"
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <Lock size={18} color="var(--color-primary)" style={{ flexShrink: 0, marginTop: 2 }} />
+                <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
+                  <p style={{ fontWeight: 700, color: 'var(--color-primary)', margin: '0 0 6px' }}>
+                    Zero-Knowledge Privacy & Case Tracking
+                  </p>
+                  <p style={{ margin: '0 0 6px' }}>
+                    Your Report ID and Recovery Key work as cryptographic keys to unlock authorized case updates without revealing your identity or private evidence.
+                  </p>
+                  <p style={{ margin: 0, fontSize: '0.82rem' }}>
+                    Because Suraksha Setu uses one-way cryptographic hashing, recovery keys cannot be recovered by administrators if lost. Keep your keys stored safely.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         )}
       </div>
     </main>

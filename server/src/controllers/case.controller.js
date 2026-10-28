@@ -368,7 +368,7 @@ export const submitCase = async (req, res) => {
   }
 };
 
-// POST /api/cases/track and /api/cases/track-lookup - Track case with caseId + recoveryCode (public)
+// POST /api/cases/track and /api/cases/track-lookup - Track case with Report ID/Case ID + Recovery Key/Code (public)
 export const trackCase = async (req, res) => {
   try {
     if (req.headers['x-simulate-offline'] === 'true' || !isDatabaseConnected()) {
@@ -378,27 +378,27 @@ export const trackCase = async (req, res) => {
       });
     }
 
-    const { caseId, recoveryCode } = req.body;
-    if (!caseId || !recoveryCode) {
-      return res.status(400).json({ success: false, message: 'Case ID and recovery code are required' });
+    const { caseId, recoveryCode, reportId, recoveryKey } = req.body;
+    const targetId = (reportId || caseId || '').toString().trim().toUpperCase();
+    const targetKey = (recoveryKey || recoveryCode || '').toString().trim().toUpperCase();
+
+    if (!targetId || !targetKey) {
+      return res.status(400).json({ success: false, message: 'Report ID and Recovery Key are required' });
     }
 
-    const normalizedCaseId = caseId.trim().toUpperCase();
-    const normalizedRecoveryCode = recoveryCode.trim().toUpperCase();
-
-    const foundCase = await Case.findOne({ caseId: normalizedCaseId }).select('+recoveryCode');
+    const foundCase = await Case.findOne({ caseId: targetId }).select('+recoveryCode');
     if (!foundCase) {
       return res.status(401).json({
         success: false,
-        message: 'Unable to verify these details. Please check your Case ID and Recovery Code and try again.',
+        message: 'Unable to verify these details. Please check your Report ID and Recovery Key and try again.',
       });
     }
 
-    const isMatch = await bcrypt.compare(normalizedRecoveryCode, foundCase.recoveryCode);
+    const isMatch = await bcrypt.compare(targetKey, foundCase.recoveryCode);
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Unable to verify these details. Please check your Case ID and Recovery Code and try again.',
+        message: 'Unable to verify these details. Please check your Report ID and Recovery Key and try again.',
       });
     }
 
