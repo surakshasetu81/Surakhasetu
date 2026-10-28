@@ -165,6 +165,15 @@ const auditHistorySchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
 });
 
+const organizationVerificationSchema = new mongoose.Schema({
+  isVerified: { type: Boolean, default: false },
+  organizationType: { type: String, enum: ['employee', 'college_student', null], default: null },
+  organizationName: { type: String, trim: true, default: null },
+  verificationMethod: { type: String, default: null },
+  idHash: { type: String, select: false },
+  verifiedAt: { type: Date, default: null },
+}, { _id: false });
+
 const caseSchema = new mongoose.Schema({
   caseId: {
     type: String,
@@ -201,6 +210,7 @@ const caseSchema = new mongoose.Schema({
   internalNotes: { type: String, select: false },
 
   // AI/ML, Safety Safeguards & Integrity Fields
+  organizationVerification: { type: organizationVerificationSchema, default: () => ({ isVerified: false }) },
   safetyIndicators: { type: safetyIndicatorSchema, default: () => ({}) },
   classification: { type: classificationSchema, default: () => ({}) },
   verification: { type: verificationSchema, default: () => ({}) },
@@ -222,6 +232,11 @@ caseSchema.methods.toPublicJSON = function () {
     supportRequired: this.supportRequired,
     isUrgent: this.isUrgent,
     legalAdvisory: this.legalAdvisory,
+    organizationVerification: this.organizationVerification?.isVerified ? {
+      isVerified: true,
+      organizationType: this.organizationVerification.organizationType,
+      organizationName: this.organizationVerification.organizationName,
+    } : { isVerified: false },
   };
 };
 

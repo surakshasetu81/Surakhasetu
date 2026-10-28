@@ -24,6 +24,13 @@ api.interceptors.response.use(
 );
 
 // ─── REPORT & CASE SUBMISSION ────────────────────────────────────────────────
+export interface OrganizationVerificationPayload {
+  verificationToken?: string;
+  isVerified?: boolean;
+  organizationType?: 'employee' | 'college_student';
+  organizationName?: string;
+}
+
 export interface ReportSubmissionPayload {
   isAnonymous: boolean;
   reporterName?: string;
@@ -36,6 +43,7 @@ export interface ReportSubmissionPayload {
   preferredLanguage?: string;
   supportRequired?: string[];
   isUrgent?: boolean;
+  organizationVerification?: OrganizationVerificationPayload;
 }
 
 export const submitReport = async (payload: ReportSubmissionPayload, files: File[] = []) => {
@@ -245,6 +253,35 @@ export const lockVault = async (token: string) => {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;
+};
+
+// ─── ORGANIZATION VERIFICATION ───────────────────────────────────────────────
+export interface VerifyOrganizationRequest {
+  organizationType: 'employee' | 'college_student';
+  organizationName: string;
+  identifier: string; // Employee ID or College ID
+  email?: string;
+}
+
+export interface VerifyOrganizationResponse {
+  success: boolean;
+  verified: boolean;
+  verificationToken?: string;
+  organizationType?: 'employee' | 'college_student';
+  organizationName?: string;
+  message: string;
+  code?: string;
+  formatHint?: string;
+}
+
+export const verifyOrganization = async (payload: VerifyOrganizationRequest): Promise<VerifyOrganizationResponse> => {
+  const res = await api.post('/api/verification/verify-organization', payload);
+  return res.data;
+};
+
+export const getKnownOrganizations = async (): Promise<{ name: string; type: string; idFormat: string }[]> => {
+  const res = await api.get('/api/verification/known-organizations');
+  return res.data?.organizations || [];
 };
 
 export default api;

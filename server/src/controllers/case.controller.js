@@ -8,6 +8,7 @@ import { checkDuplicateSubmission } from '../services/duplicateDetectionService.
 import { recommendLegalFrameworks } from '../services/legalFrameworkRecommender.js';
 import { requestMLClassification } from '../services/mlClientService.js';
 import { generateLegalAssessment } from '../services/legalAssessmentEngine.js';
+import { validateVerificationToken } from '../services/organizationVerificationService.js';
 import { isDatabaseConnected } from '../config/database.js';
 
 // In-memory dev storage for development and offline fallback
@@ -110,6 +111,7 @@ export const submitCase = async (req, res) => {
       supportRequired,
       isUrgent,
       safetyIndicators = {},
+      organizationVerification = {},
     } = req.body;
 
     const ALLOWED_NEW_REPORT_CATEGORIES = [
@@ -218,9 +220,19 @@ export const submitCase = async (req, res) => {
     const verificationStatus = duplicateCheck.isPossibleDuplicate ? 'POSSIBLE_DUPLICATE' : 'CLEAR';
     const verificationFlags = [...duplicateCheck.flags];
 
+    // Independently validate organization verification token (Prevent frontend state manipulation)
+    let verifiedOrgData = { isVerified: false };
+    if (organizationVerification && organizationVerification.verificationToken) {
+      const validatedAffiliation = validateVerificationToken(organizationVerification.verificationToken);
+      if (validatedAffiliation && validatedAffiliation.isVerified) {
+        verifiedOrgData = validatedAffiliation;
+      }
+    }
+
     // Build Case Persistence Object
     const caseData = {
       isAnonymous: isAnonymous !== false,
+      organizationVerification: verifiedOrgData,
       incidentCategory,
       description,
       preferredLanguage: preferredLanguage || 'en',
@@ -281,6 +293,14 @@ export const submitCase = async (req, res) => {
         },
       ],
     };
+
+    if (verifiedOrgData.isVerified) {
+      caseData.auditHistory.push({
+        action: 'ORGANIZATION_AFFILIATION_VERIFIED',
+        reason: `Affiliation confirmed: ${verifiedOrgData.organizationName} (${verifiedOrgData.organizationType}) via ${verifiedOrgData.verificationMethod}`,
+        timestamp: new Date(),
+      });
+    }
 
     if (!caseData.isAnonymous) {
       caseData.reporterName = reporterName;

@@ -25,6 +25,7 @@ import resourceRoutes from './routes/resource.routes.js';
 import staffRoutes from './routes/staff.routes.js';
 import legalAssessmentRoutes from './routes/legalAssessment.routes.js';
 import vaultRoutes from './routes/vault.routes.js';
+import verificationRoutes from './routes/verification.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -102,6 +103,7 @@ app.use('/api/resources', resourceRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/legal-assessment', legalAssessmentRoutes);
 app.use('/api/vault', vaultRoutes);
+app.use('/api/verification', verificationRoutes);
 
 // General Health check endpoint
 app.get('/api/health', (req, res) => {
