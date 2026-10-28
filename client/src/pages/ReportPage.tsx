@@ -187,8 +187,8 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
                     background: isCompleted
                       ? 'var(--color-success)'
                       : isActive
-                      ? 'var(--color-primary)'
-                      : 'var(--color-card)',
+                        ? 'var(--color-primary)'
+                        : 'var(--color-card)',
                     color: isCompleted || isActive ? '#ffffff' : 'var(--color-text-secondary)',
                     border: isCompleted || isActive ? 'none' : '2px solid var(--color-border)',
                   }}
@@ -204,8 +204,8 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
                     color: isActive
                       ? 'var(--color-primary)'
                       : isCompleted
-                      ? 'var(--color-text-main)'
-                      : 'var(--color-text-secondary)',
+                        ? 'var(--color-text-main)'
+                        : 'var(--color-text-secondary)',
                     lineHeight: 1.25,
                     whiteSpace: 'nowrap',
                   }}
@@ -1439,14 +1439,14 @@ export default function ReportPage() {
                               legalAssessment.status === 'ADDITIONAL_INFORMATION_NEEDED'
                                 ? 'rgba(217, 119, 6, 0.12)'
                                 : legalAssessment.status === 'NO_SPECIFIC_MATCH_IDENTIFIED'
-                                ? 'rgba(107, 114, 128, 0.12)'
-                                : 'rgba(22, 133, 107, 0.12)',
+                                  ? 'rgba(107, 114, 128, 0.12)'
+                                  : 'rgba(22, 133, 107, 0.12)',
                             color:
                               legalAssessment.status === 'ADDITIONAL_INFORMATION_NEEDED'
                                 ? '#B45309'
                                 : legalAssessment.status === 'NO_SPECIFIC_MATCH_IDENTIFIED'
-                                ? '#4B5563'
-                                : '#16856B',
+                                  ? '#4B5563'
+                                  : '#16856B',
                             border:
                               legalAssessment.status === 'ADDITIONAL_INFORMATION_NEEDED'
                                 ? '1px solid rgba(217, 119, 6, 0.3)'
@@ -1456,8 +1456,8 @@ export default function ReportPage() {
                           {legalAssessment.status === 'ADDITIONAL_INFORMATION_NEEDED'
                             ? 'Clarification Needed'
                             : legalAssessment.status === 'NO_SPECIFIC_MATCH_IDENTIFIED'
-                            ? 'Uncategorized'
-                            : 'Preliminary Advisory'}
+                              ? 'Uncategorized'
+                              : 'Preliminary Advisory'}
                         </span>
                       )}
                       <button
