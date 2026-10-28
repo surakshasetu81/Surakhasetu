@@ -31,6 +31,7 @@ import Vault from '../src/models/Vault.js';
 import VaultEvidence from '../src/models/VaultEvidence.js';
 import VaultAuditLog from '../src/models/VaultAuditLog.js';
 import { appendVaultAuditEvent, verifyVaultAuditChain } from '../src/services/vaultAuditService.js';
+import { connectDB, closeDB } from '../src/config/database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,7 +58,7 @@ console.log('===================================================================
 console.log('SURAKSHA SETU — PROOF VAULT CRYPTOGRAPHY & INTEGRITY VERIFICATION SUITE');
 console.log('========================================================================\n');
 
-await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 5000 });
+await connectDB();
 
 // 1. Vault Creation & ID Generation
 let testVaultId = '';
@@ -190,7 +191,7 @@ await Vault.deleteMany({ vaultId: testVaultId });
 await VaultEvidence.deleteMany({ vaultId: testVaultId });
 await VaultAuditLog.deleteMany({ vaultId: testVaultId });
 
-await mongoose.disconnect();
+await closeDB();
 
 console.log('\n========================================================================');
 console.log(`PROOF VAULT SUITE: ${passed} PASSED, ${failed} FAILED (Total: ${passed + failed})`);

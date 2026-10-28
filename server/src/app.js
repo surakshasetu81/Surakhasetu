@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 import { env } from './config/env.js';
@@ -29,6 +30,19 @@ import vaultRoutes from './routes/vault.routes.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Ensure local upload storage directories exist
+const uploadDirs = [
+  path.join(__dirname, '../uploads'),
+  path.join(__dirname, '../uploads/evidence'),
+  path.join(__dirname, '../uploads/vault_encrypted'),
+  path.join(__dirname, '../uploads/vault_backup'),
+];
+for (const dir of uploadDirs) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
 const app = express();
 
 // Connect to MongoDB
@@ -37,12 +51,45 @@ connectDB();
 // Security middleware
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-// CORS restricted to configured frontend origin
+// CORS configuration supporting local development, Vercel deployments, and production URLs
+const configuredOrigins = [
+  env.FRONTEND_ORIGIN,
+  env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+]
+  .filter(Boolean)
+  .flatMap(item => item.split(',').map(s => s.trim().replace(/\/$/, '')));
+
 app.use(cors({
-  origin: env.FRONTEND_ORIGIN || env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow non-browser requests (e.g. server-to-server, curl, health checks)
+    if (!origin) return callback(null, true);
+
+    const cleanOrigin = origin.replace(/\/$/, '');
+    if (configuredOrigins.includes(cleanOrigin)) {
+      return callback(null, true);
+    }
+
+    // Auto-allow any Vercel domain preview or production deployment
+    try {
+      const parsedUrl = new URL(origin);
+      if (
+        parsedUrl.hostname.endsWith('.vercel.app') ||
+        parsedUrl.hostname === 'localhost' ||
+        parsedUrl.hostname === '127.0.0.1'
+      ) {
+        return callback(null, true);
+      }
+    } catch (_) {}
+
+    return callback(null, false);
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-vault-token', 'x-simulate-offline'],
+  exposedHeaders: ['x-evidence-iv', 'x-evidence-digest', 'x-evidence-original-name', 'x-evidence-mimetype'],
 }));
 
 // Rate limiting

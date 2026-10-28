@@ -37,6 +37,10 @@ export const seedDefaultUsers = async () => {
 };
 
 const startMemoryDB = async () => {
+  if (env.NODE_ENV === 'production') {
+    console.warn('⚠️  NODE_ENV=production: In-memory fallback is disabled in production. External MongoDB connection required.');
+    return null;
+  }
   try {
     console.log('📦 Starting local embedded MongoDB database instance...');
     const { MongoMemoryServer } = await import('mongodb-memory-server');
@@ -200,6 +204,38 @@ export const connectDB = async () => {
     }
 
     console.warn(`⚠️  Remote MongoDB connection attempt failed: ${safeError}`);
+    if (env.NODE_ENV === 'production') {
+      console.warn(`⚠️  Diagnostic [${lastDiagnosticCategory}]: ${lastConnectionError}`);
+      console.log('🔄 Scheduling automatic background reconnection retry every 5s...');
+      if (!reconnectInterval) {
+        reconnectInterval = setInterval(async () => {
+          if (!isDatabaseConnected()) {
+            try {
+              const retryConn = await mongoose.connect(uri, {
+                serverSelectionTimeoutMS: 5000,
+                connectTimeoutMS: 8000,
+                maxPoolSize: 10,
+              });
+              if (isDatabaseConnected()) {
+                lastConnectionError = null;
+                lastDiagnosticCategory = null;
+                console.log(`✅ Automatic reconnection to MongoDB Atlas succeeded! [Host: ${retryConn.connection.host}]`);
+                clearInterval(reconnectInterval);
+                reconnectInterval = null;
+                await seedDefaultUsers();
+              }
+            } catch (_) {
+              // keep waiting for network or credentials to be updated
+            }
+          } else {
+            clearInterval(reconnectInterval);
+            reconnectInterval = null;
+          }
+        }, 5000);
+      }
+      return null;
+    }
+
     console.log('🔄 Automatically falling back to local embedded MongoDB database for full functionality...');
     return await startMemoryDB();
   }

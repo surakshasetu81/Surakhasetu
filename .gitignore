@@ -27,6 +27,7 @@ env/
 *.env
 server/.env
 client/.env
+ml-service/.env
 
 # Uploads & Temporary Storage
 uploads/evidence/*
