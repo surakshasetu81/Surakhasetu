@@ -10,6 +10,15 @@ export const api = axios.create({
   },
 });
 
+// Interceptor to attach Authorization Bearer token if present
+api.interceptors.request.use(config => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('suraksha_staff_token') : null;
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = "Bearer " + token;
+  }
+  return config;
+});
+
 // Interceptor for standardized error messages
 api.interceptors.response.use(
   response => response,
@@ -24,6 +33,13 @@ api.interceptors.response.use(
 );
 
 // ─── REPORT & CASE SUBMISSION ────────────────────────────────────────────────
+export interface OrganizationVerificationPayload {
+  verificationToken?: string;
+  isVerified?: boolean;
+  organizationType?: 'employee' | 'college_student';
+  organizationName?: string;
+}
+
 export interface ReportSubmissionPayload {
   isAnonymous: boolean;
   reporterName?: string;
@@ -36,6 +52,7 @@ export interface ReportSubmissionPayload {
   preferredLanguage?: string;
   supportRequired?: string[];
   isUrgent?: boolean;
+  organizationVerification?: OrganizationVerificationPayload;
 }
 
 export const submitReport = async (payload: ReportSubmissionPayload, files: File[] = []) => {
@@ -272,5 +289,64 @@ export const lockVault = async (token: string) => {
   return res.data;
 };
 
+// ─── ORGANIZATION VERIFICATION ───────────────────────────────────────────────
+export interface VerifyOrganizationRequest {
+  organizationType: 'employee' | 'college_student';
+  organizationName: string;
+  identifier: string; // Employee ID or College ID
+  email?: string;
+}
+
+export interface VerifyOrganizationResponse {
+  success: boolean;
+  verified: boolean;
+  verificationToken?: string;
+  organizationType?: 'employee' | 'college_student';
+  organizationName?: string;
+  message: string;
+  code?: string;
+  formatHint?: string;
+}
+
+export const verifyOrganization = async (payload: VerifyOrganizationRequest): Promise<VerifyOrganizationResponse> => {
+  const res = await api.post('/api/verification/verify-organization', payload);
+  return res.data;
+};
+
+export const getKnownOrganizations = async (): Promise<{ name: string; type: string; idFormat: string }[]> => {
+  const res = await api.get('/api/verification/known-organizations');
+  return res.data?.organizations || [];
+};
+
+
+// ─── SAFETY ASSISTANT CHATBOT ───────────────────────────────────────────────
+export interface OfficialResource {
+  name: string;
+  url: string;
+  phone?: string;
+  description?: string;
+}
+
+export interface AssistantChatResponse {
+  success: boolean;
+  reply: string;
+  language: 'en' | 'hi' | 'hinglish';
+  isEmergency: boolean;
+  intent: string;
+  suggestedActions: string[];
+  officialResources: OfficialResource[];
+  aiConfigured: boolean;
+  source: string;
+}
+
+export const sendAssistantMessage = async (
+  message: string,
+  history: Array<{ role: 'user' | 'assistant'; text: string }> = []
+): Promise<AssistantChatResponse> => {
+  const res = await api.post('/api/assistant/chat', { message, history });
+  return res.data;
+};
+
 export default api;
+
 

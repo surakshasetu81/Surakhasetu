@@ -12,12 +12,19 @@ export const seedDefaultUsers = async () => {
       await User.create({
         name: 'Internal Committee Admin',
         email: 'admin@surakshasetu.org',
-        password: 'AdminPassword123!',
+        password: 'Admin@12345',
         role: 'admin',
         department: 'Internal Complaints Committee (ICC)',
         isActive: true,
       });
-      console.log('🌱 Seeded default admin account: admin@surakshasetu.org / AdminPassword123!');
+      console.log('🌱 Seeded default admin account: admin@surakshasetu.org / Admin@12345');
+    } else {
+      const matchesStandard = await admin.comparePassword('Admin@12345');
+      if (!matchesStandard && (await admin.comparePassword('AdminPassword123!'))) {
+        admin.password = 'Admin@12345';
+        await admin.save();
+        console.log('🔄 Updated admin password to standard demo credentials: Admin@12345');
+      }
     }
     let staff = await User.findOne({ email: 'staff@surakshasetu.org' });
     if (!staff) {

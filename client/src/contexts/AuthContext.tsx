@@ -28,14 +28,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('suraksha_staff_token') : null;
+
     api.get('/api/auth/me')
-      .then(res => setUser(res.data.user))
-      .catch(() => setUser(null))
+      .then(res => {
+        if (res.data?.user) {
+          setUser(res.data.user);
+        } else {
+          setUser(null);
+          if (token) localStorage.removeItem('suraksha_staff_token');
+        }
+      })
+      .catch(() => {
+        setUser(null);
+        if (token) localStorage.removeItem('suraksha_staff_token');
+      })
       .finally(() => setLoading(false));
   }, []);
 
   const login = async (email: string, password: string) => {
-    const res = await api.post('/api/auth/login', { email, password });
+    const res = await api.post('/api/auth/login', {
+      email: email.trim(),
+      password,
+    });
+    if (res.data?.token) {
+      localStorage.setItem('suraksha_staff_token', res.data.token);
+    }
     setUser(res.data.user);
   };
 
@@ -45,6 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch {
       // Ignored
     }
+    localStorage.removeItem('suraksha_staff_token');
     setUser(null);
   };
 

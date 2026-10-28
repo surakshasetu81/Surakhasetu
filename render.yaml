@@ -1,7 +1,7 @@
 services:
-  # ─────────────────────────────────────────────────────────────────────────────
-  # 1. Node.js & Express REST Backend Service
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────
+  # Suraksha Setu — Node.js Express Backend API Web Service
+  # ─────────────────────────────────────────────────────────────
   - type: web
     name: suraksha-setu-server
     runtime: node
@@ -29,18 +29,18 @@ services:
       - key: ML_SERVICE_URL
         fromService:
           type: web
-          name: suraksha-setu-ml
+          name: suraksha-setu-ml-service
           property: host
       - key: MAX_FILE_SIZE
         value: 10485760
       - key: UPLOAD_DIR
         value: uploads/
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # 2. Python & FastAPI Machine Learning Microservice
-  # ─────────────────────────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────
+  # Suraksha Setu — Python FastAPI ML & Legal Assessment Microservice
+  # ─────────────────────────────────────────────────────────────
   - type: web
-    name: suraksha-setu-ml
+    name: suraksha-setu-ml-service
     runtime: python
     plan: free
     rootDir: ml-service
@@ -50,5 +50,4 @@ services:
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.8
-
+        value: 3.11.9

@@ -26,6 +26,8 @@ import resourceRoutes from './routes/resource.routes.js';
 import staffRoutes from './routes/staff.routes.js';
 import legalAssessmentRoutes from './routes/legalAssessment.routes.js';
 import vaultRoutes from './routes/vault.routes.js';
+import verificationRoutes from './routes/verification.routes.js';
+import assistantRoutes from './routes/assistant.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -72,11 +74,12 @@ app.use(cors({
       return callback(null, true);
     }
 
-    // Auto-allow any Vercel domain preview or production deployment
+    // Auto-allow any Vercel or Render domain preview or production deployment
     try {
       const parsedUrl = new URL(origin);
       if (
         parsedUrl.hostname.endsWith('.vercel.app') ||
+        parsedUrl.hostname.endsWith('.onrender.com') ||
         parsedUrl.hostname === 'localhost' ||
         parsedUrl.hostname === '127.0.0.1'
       ) {
@@ -136,6 +139,8 @@ app.use('/api/resources', resourceRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/legal-assessment', legalAssessmentRoutes);
 app.use('/api/vault', vaultRoutes);
+app.use('/api/verification', verificationRoutes);
+app.use('/api/assistant', assistantRoutes);
 
 // General Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -195,22 +200,27 @@ app.use((req, res) => {
   res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
 });
 
-const PORT = env.PORT || 5000;
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Suraksha Setu server running on port ${PORT}`);
-});
-
-// Graceful shutdown
-const handleShutdown = async (signal) => {
-  console.log(`\n${signal} received. Initiating graceful shutdown...`);
-  server.close(async () => {
-    await closeDB();
-    console.log('Server process terminated gracefully.');
-    process.exit(0);
+let server;
+if (!process.env.VERCEL) {
+  const PORT = env.PORT || 5000;
+  server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Suraksha Setu server running on port ${PORT}`);
   });
-};
 
-process.on('SIGTERM', () => handleShutdown('SIGTERM'));
-process.on('SIGINT', () => handleShutdown('SIGINT'));
+  // Graceful shutdown
+  const handleShutdown = async (signal) => {
+    console.log(`\n${signal} received. Initiating graceful shutdown...`);
+    if (server) {
+      server.close(async () => {
+        await closeDB();
+        console.log('Server process terminated gracefully.');
+        process.exit(0);
+      });
+    }
+  };
+
+  process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+  process.on('SIGINT', () => handleShutdown('SIGINT'));
+}
 
 export default app;

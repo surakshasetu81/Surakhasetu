@@ -6,9 +6,16 @@ import { z } from 'zod';
 import {
   Shield, Upload, CheckCircle2, AlertTriangle, X, FileText, Copy,
   ArrowRight, ArrowLeft, UserCheck, EyeOff, Check,
-  Scale, BookOpen, ExternalLink, HelpCircle, Info, Sparkles, RefreshCw
+  Scale, BookOpen, ExternalLink, HelpCircle, Info, Sparkles, RefreshCw,
+  Building2, Briefcase, GraduationCap, ShieldCheck, AlertCircle
 } from 'lucide-react';
-import { submitReport, fetchLegalAssessment } from '../services/api';
+import {
+  submitReport,
+  fetchLegalAssessment,
+  verifyOrganization,
+  getKnownOrganizations,
+  type ReportSubmissionPayload
+} from '../services/api';
 import VoiceInputButton from '../components/VoiceInputButton';
 
 interface CandidateProvision {
@@ -361,7 +368,7 @@ function FileUpload({ files, setFiles }: { files: File[]; setFiles: (f: File[]) 
 }
 
 // ─── Success Screen ───────────────────────────────────────────────────────────
-function SuccessScreen({ result }: { result: SubmissionResult }) {
+function SuccessScreen({ result, verifiedOrg }: { result: SubmissionResult; verifiedOrg?: { organizationName: string; organizationType: string } | null }) {
   const [copied, setCopied] = useState<string | null>(null);
 
   const copy = (text: string, field: string) => {
@@ -394,9 +401,30 @@ function SuccessScreen({ result }: { result: SubmissionResult }) {
       <h2 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: 8, color: 'var(--color-text-main)' }}>
         Complaint Submitted Successfully
       </h2>
-      <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.92rem', marginBottom: 28, maxWidth: 540, margin: '0 auto 28px' }}>
+      <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.92rem', marginBottom: 20, maxWidth: 540, margin: '0 auto 20px' }}>
         Your report has been securely registered in the system. Save your confidential Case ID and Recovery Code below to track investigation progress.
       </p>
+
+      {verifiedOrg && (
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 18px',
+            borderRadius: 999,
+            background: 'var(--color-pale-pink)',
+            border: '1.5px solid var(--color-border)',
+            color: 'var(--color-primary)',
+            fontSize: '0.86rem',
+            fontWeight: 700,
+            marginBottom: 24,
+          }}
+        >
+          <ShieldCheck size={18} color="var(--color-success)" />
+          <span>Organization Affiliation Verified: {verifiedOrg.organizationName} ({verifiedOrg.organizationType === 'employee' ? 'Employee' : 'College Student'})</span>
+        </div>
+      )}
 
       <div
         style={{
@@ -494,7 +522,83 @@ function SuccessScreen({ result }: { result: SubmissionResult }) {
 
 // ─── Main ReportPage Component ───────────────────────────────────────────────
 export default function ReportPage() {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0); // Step 0: Organization Verification
+  const [verifiedOrg, setVerifiedOrg] = useState<{
+    isVerified: boolean;
+    organizationType: 'employee' | 'college_student';
+    organizationName: string;
+    verificationToken: string;
+  } | null>(null);
+  const [orgVerificationMode, setOrgVerificationMode] = useState<'verify' | 'anonymous'>('verify');
+  const [orgType, setOrgType] = useState<'employee' | 'college_student'>('employee');
+  const [orgName, setOrgName] = useState('');
+  const [orgId, setOrgId] = useState('');
+  const [orgEmail, setOrgEmail] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [orgError, setOrgError] = useState('');
+  const [orgSuccess, setOrgSuccess] = useState('');
+  const [knownOrgs, setKnownOrgs] = useState<{ name: string; type: string; idFormat: string }[]>([]);
+
+  useEffect(() => {
+    getKnownOrganizations()
+      .then(orgs => setKnownOrgs(orgs))
+      .catch(() => {});
+  }, []);
+
+  const handleVerifyOrganization = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setOrgError('');
+    setOrgSuccess('');
+
+    if (!orgName.trim()) {
+      setOrgError(orgType === 'employee' ? 'Please enter your Company Name.' : 'Please enter your College/University Name.');
+      return;
+    }
+    if (!orgId.trim()) {
+      setOrgError(orgType === 'employee' ? 'Please enter your Employee ID.' : 'Please enter your College ID.');
+      return;
+    }
+
+    setVerifying(true);
+    try {
+      const res = await verifyOrganization({
+        organizationType: orgType,
+        organizationName: orgName.trim(),
+        identifier: orgId.trim(),
+        email: orgEmail.trim() || undefined,
+      });
+
+      if (res.verified && res.verificationToken) {
+        setVerifiedOrg({
+          isVerified: true,
+          organizationType: res.organizationType || orgType,
+          organizationName: res.organizationName || orgName.trim(),
+          verificationToken: res.verificationToken,
+        });
+        setOrgSuccess(res.message || 'Organization successfully verified.');
+        setTimeout(() => {
+          setStep(1);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 600);
+      } else {
+        setOrgError(res.message || 'Verification could not be completed.');
+      }
+    } catch (err: any) {
+      const errorMsg = err?.response?.data?.message || err?.friendlyMessage || 'Verification failed. Please check the entered details or proceed with anonymous reporting.';
+      setOrgError(errorMsg);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleContinueAnonymous = () => {
+    setVerifiedOrg(null);
+    form1.setValue('isAnonymous', true);
+    setStep1Data(prev => ({ ...prev, isAnonymous: true }));
+    setStep(1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const [step1Data, setStep1Data] = useState<Step1Data>({ isAnonymous: true });
   const [step2Data, setStep2Data] = useState<Partial<Step2Data>>({});
   const [step3Data, setStep3Data] = useState<Step3Data>({ supportRequired: [], isUrgent: false });
@@ -589,11 +693,17 @@ export default function ReportPage() {
         evidenceNotes ? `[Evidence Notes & Descriptions: ${evidenceNotes}]` : null,
       ].filter(Boolean).join('\n\n');
 
-      const payload = {
+      const payload: ReportSubmissionPayload = {
         ...step1Data,
         ...step2Data,
         ...step3Data,
         description: combinedDescription,
+        organizationVerification: verifiedOrg ? {
+          verificationToken: verifiedOrg.verificationToken,
+          isVerified: true,
+          organizationType: verifiedOrg.organizationType,
+          organizationName: verifiedOrg.organizationName,
+        } : { isVerified: false },
       };
       const res = await submitReport(payload, files);
       setResult(res);
@@ -665,7 +775,30 @@ export default function ReportPage() {
         </div>
 
         {/* ─── Step Progress Indicator ─── */}
-        {step < 6 && <StepIndicator current={step} total={5} />}
+        {step >= 1 && step < 6 && <StepIndicator current={step} total={5} />}
+
+        {/* ─── Step 0 Indicator ─── */}
+        {step === 0 && (
+          <div style={{ maxWidth: 820, margin: '0 auto 24px', textAlign: 'center' }}>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 18px',
+                background: 'var(--color-soft-pink)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 999,
+                color: 'var(--color-primary)',
+                fontSize: '0.84rem',
+                fontWeight: 700,
+              }}
+            >
+              <Building2 size={16} />
+              <span>Section 1: Organization Verification</span>
+            </div>
+          </div>
+        )}
 
         {/* ─── Main Form Card Container ─── */}
         <div
@@ -681,7 +814,551 @@ export default function ReportPage() {
             boxShadow: 'var(--shadow-sm)',
           }}
         >
+          {/* Persistent Verification Status Banner for Steps 1-5 */}
+          {step >= 1 && step <= 5 && (
+            verifiedOrg ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 18px',
+                  background: 'var(--color-pale-pink)',
+                  border: '1.5px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: 24,
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      background: 'var(--color-soft-pink)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <ShieldCheck size={18} color="var(--color-success)" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--color-text-main)' }}>
+                      Organization Verified: {verifiedOrg.organizationName}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                      Verified as {verifiedOrg.organizationType === 'employee' ? 'Company Employee' : 'College Student'}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep(0)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-primary)',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 16px',
+                  background: 'var(--color-bg-secondary)',
+                  border: '1px dashed var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: 24,
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <EyeOff size={16} color="var(--color-text-secondary)" />
+                  <span style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+                    Filing in Anonymous / Unverified Affiliation Mode
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep(0)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-primary)',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Verify Organization
+                </button>
+              </div>
+            )
+          )}
+
           <AnimatePresence mode="wait">
+            {/* ══════════════════════════════════════════════════════════════
+                STEP 0: ORGANIZATION VERIFICATION
+                ══════════════════════════════════════════════════════════════ */}
+            {step === 0 && (
+              <motion.div
+                key="step0"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.25 }}
+              >
+                {/* Heading & Description required by specification */}
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 10,
+                        background: 'var(--color-soft-pink)',
+                        color: 'var(--color-primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Building2 size={20} />
+                    </div>
+                    <h2 style={{ fontWeight: 800, fontSize: 'clamp(1.2rem, 2.5vw, 1.45rem)', color: 'var(--color-text-main)', margin: 0 }}>
+                      Organization Verification
+                    </h2>
+                  </div>
+                  <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.92rem', lineHeight: 1.6, margin: 0 }}>
+                    Verify your organization to help us process your workplace or college complaint appropriately.
+                  </p>
+                </div>
+
+                {/* Two options: Verify My Organization vs Continue with Anonymous Reporting */}
+                <div
+                  role="radiogroup"
+                  aria-label="Choose verification approach"
+                  style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 24 }}
+                >
+                  {/* Option 1: Verify My Organization */}
+                  <div
+                    role="radio"
+                    aria-checked={orgVerificationMode === 'verify'}
+                    tabIndex={0}
+                    onClick={() => { setOrgVerificationMode('verify'); setOrgError(''); }}
+                    onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setOrgVerificationMode('verify'); setOrgError(''); } }}
+                    style={{
+                      border: orgVerificationMode === 'verify' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-border)',
+                      background: orgVerificationMode === 'verify' ? 'var(--color-soft-pink)' : 'var(--color-card)',
+                      borderRadius: 'var(--radius-lg)',
+                      padding: '18px 20px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      gap: 14,
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 10,
+                        background: orgVerificationMode === 'verify' ? 'var(--color-card)' : 'var(--color-bg-secondary)',
+                        color: 'var(--color-primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <ShieldCheck size={22} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--color-text-main)', marginBottom: 4 }}>
+                        Verify My Organization
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', lineHeight: 1.45 }}>
+                        Verify affiliation with your workplace company or college/university using your ID.
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Option 2: Continue with Anonymous Reporting */}
+                  <div
+                    role="radio"
+                    aria-checked={orgVerificationMode === 'anonymous'}
+                    tabIndex={0}
+                    onClick={() => { setOrgVerificationMode('anonymous'); setOrgError(''); }}
+                    onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setOrgVerificationMode('anonymous'); setOrgError(''); } }}
+                    style={{
+                      border: orgVerificationMode === 'anonymous' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-border)',
+                      background: orgVerificationMode === 'anonymous' ? 'var(--color-soft-pink)' : 'var(--color-card)',
+                      borderRadius: 'var(--radius-lg)',
+                      padding: '18px 20px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      gap: 14,
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 10,
+                        background: orgVerificationMode === 'anonymous' ? 'var(--color-card)' : 'var(--color-bg-secondary)',
+                        color: 'var(--color-primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <EyeOff size={22} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--color-text-main)', marginBottom: 4 }}>
+                        Continue with Anonymous Reporting
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', lineHeight: 1.45 }}>
+                        File a report confidentially without entering any Employee or College ID.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Verification Form Body */}
+                {orgVerificationMode === 'verify' ? (
+                  <form onSubmit={handleVerifyOrganization} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    {/* Field 1: Organization Type */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.86rem', fontWeight: 700, color: 'var(--color-text-main)', marginBottom: 8 }}>
+                        Organization Type
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                        <button
+                          type="button"
+                          onClick={() => { setOrgType('employee'); setOrgError(''); }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: '12px 16px',
+                            borderRadius: 'var(--radius-md)',
+                            border: orgType === 'employee' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-border)',
+                            background: orgType === 'employee' ? 'var(--color-soft-pink)' : 'var(--color-card)',
+                            color: orgType === 'employee' ? 'var(--color-primary)' : 'var(--color-text-main)',
+                            fontWeight: orgType === 'employee' ? 700 : 500,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          <Briefcase size={18} />
+                          <span>Employee</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setOrgType('college_student'); setOrgError(''); }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: '12px 16px',
+                            borderRadius: 'var(--radius-md)',
+                            border: orgType === 'college_student' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-border)',
+                            background: orgType === 'college_student' ? 'var(--color-soft-pink)' : 'var(--color-card)',
+                            color: orgType === 'college_student' ? 'var(--color-primary)' : 'var(--color-text-main)',
+                            fontWeight: orgType === 'college_student' ? 700 : 500,
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          <GraduationCap size={18} />
+                          <span>College Student</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Field 2: Organization Name */}
+                    <div>
+                      <label htmlFor="org-name-input" style={{ display: 'block', fontSize: '0.86rem', fontWeight: 700, color: 'var(--color-text-main)', marginBottom: 6 }}>
+                        {orgType === 'employee' ? 'Company Name' : 'College/University Name'} <span style={{ color: 'var(--color-primary)' }}>*</span>
+                      </label>
+                      <input
+                        id="org-name-input"
+                        type="text"
+                        list="known-orgs-datalist"
+                        value={orgName}
+                        onChange={e => { setOrgName(e.target.value); setOrgError(''); }}
+                        placeholder={orgType === 'employee' ? 'e.g., Apex Global Technologies or Tata Consultancy Services' : 'e.g., Delhi University or St. Xavier\'s College'}
+                        style={{
+                          width: '100%',
+                          padding: '11px 14px',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1.5px solid var(--color-border)',
+                          background: 'var(--color-card)',
+                          color: 'var(--color-text-main)',
+                          fontSize: '0.92rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      <datalist id="known-orgs-datalist">
+                        {knownOrgs
+                          .filter(o => o.type === orgType)
+                          .map(o => (
+                            <option key={o.name} value={o.name}>
+                              {o.name} ({o.idFormat})
+                            </option>
+                          ))}
+                      </datalist>
+                      <p style={{ margin: '5px 0 0', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                        Supported configured institutions include registered workplace partners and university boards.
+                      </p>
+                    </div>
+
+                    {/* Field 3: Employee ID / College ID */}
+                    <div>
+                      <label htmlFor="org-id-input" style={{ display: 'block', fontSize: '0.86rem', fontWeight: 700, color: 'var(--color-text-main)', marginBottom: 6 }}>
+                        {orgType === 'employee' ? 'Employee ID' : 'College ID'} <span style={{ color: 'var(--color-primary)' }}>*</span>
+                      </label>
+                      <input
+                        id="org-id-input"
+                        type="text"
+                        value={orgId}
+                        onChange={e => { setOrgId(e.target.value); setOrgError(''); }}
+                        placeholder={orgType === 'employee' ? 'Enter Employee ID' : 'Enter College ID'}
+                        style={{
+                          width: '100%',
+                          padding: '11px 14px',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1.5px solid var(--color-border)',
+                          background: 'var(--color-card)',
+                          color: 'var(--color-text-main)',
+                          fontSize: '0.92rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      <p style={{ margin: '5px 0 0', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                        Your ID is verified cryptographically and is never stored in plaintext or exposed on public tracking.
+                      </p>
+                    </div>
+
+                    {/* Field 4: Optional Organization Email */}
+                    <div>
+                      <label htmlFor="org-email-input" style={{ display: 'block', fontSize: '0.86rem', fontWeight: 700, color: 'var(--color-text-main)', marginBottom: 6 }}>
+                        {orgType === 'employee' ? 'Work Email (Optional)' : 'College Email (Optional)'}
+                      </label>
+                      <input
+                        id="org-email-input"
+                        type="email"
+                        value={orgEmail}
+                        onChange={e => { setOrgEmail(e.target.value); setOrgError(''); }}
+                        placeholder={orgType === 'employee' ? 'e.g., name@apextech.com' : 'e.g., student@du.ac.in'}
+                        style={{
+                          width: '100%',
+                          padding: '11px 14px',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1.5px solid var(--color-border)',
+                          background: 'var(--color-card)',
+                          color: 'var(--color-text-main)',
+                          fontSize: '0.92rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                      <p style={{ margin: '5px 0 0', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                        Optional: matching your institutional domain strengthens verification authenticity.
+                      </p>
+                    </div>
+
+                    {/* Error Alert */}
+                    {orgError && (
+                      <div
+                        style={{
+                          padding: '14px 16px',
+                          borderRadius: 'var(--radius-md)',
+                          background: 'rgba(217, 45, 53, 0.08)',
+                          border: '1px solid rgba(217, 45, 53, 0.3)',
+                          color: 'var(--color-emergency)',
+                          fontSize: '0.88rem',
+                          lineHeight: 1.5,
+                          display: 'flex',
+                          gap: 12,
+                          alignItems: 'flex-start',
+                        }}
+                      >
+                        <AlertCircle size={20} style={{ flexShrink: 0, marginTop: 2 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, marginBottom: 4 }}>Verification Error</div>
+                          <div>{orgError}</div>
+                          <div style={{ marginTop: 8 }}>
+                            <button
+                              type="button"
+                              onClick={handleContinueAnonymous}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--color-primary)',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                fontSize: '0.84rem',
+                                padding: 0,
+                                textDecoration: 'underline',
+                              }}
+                            >
+                              Proceed with Anonymous Reporting instead &rarr;
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Success Alert */}
+                    {orgSuccess && (
+                      <div
+                        style={{
+                          padding: '14px 16px',
+                          borderRadius: 'var(--radius-md)',
+                          background: 'rgba(22, 133, 107, 0.1)',
+                          border: '1px solid rgba(22, 133, 107, 0.3)',
+                          color: 'var(--color-success)',
+                          fontSize: '0.88rem',
+                          lineHeight: 1.5,
+                          display: 'flex',
+                          gap: 12,
+                          alignItems: 'center',
+                        }}
+                      >
+                        <CheckCircle2 size={20} style={{ flexShrink: 0 }} />
+                        <div style={{ fontWeight: 700 }}>{orgSuccess}</div>
+                      </div>
+                    )}
+
+                    {/* Action Button: Verify & Continue */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="submit"
+                        disabled={verifying}
+                        className="btn btn-primary"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '12px 24px',
+                          fontSize: '0.94rem',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {verifying ? (
+                          <>
+                            <RefreshCw size={18} className="animate-spin" />
+                            <span>Verifying Organization...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck size={18} />
+                            <span>Verify & Continue</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleContinueAnonymous}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--color-text-secondary)',
+                          fontSize: '0.86rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                        }}
+                      >
+                        Skip verification and continue anonymously
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    <div
+                      style={{
+                        padding: '16px 18px',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--color-bg-secondary)',
+                        border: '1.5px solid var(--color-border)',
+                        color: 'var(--color-text-main)',
+                        fontSize: '0.9rem',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, marginBottom: 6, color: 'var(--color-primary)' }}>
+                        <EyeOff size={18} />
+                        <span>Anonymous Reporting Notice</span>
+                      </div>
+                      <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: '0.88rem' }}>
+                        Anonymous reporting is 100% confidential. You are not required to provide an Employee ID, College ID, name, or email. Please note that anonymous reporting may limit the ability of the Internal Committee (IC) to verify your organizational affiliation.
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={handleContinueAnonymous}
+                        className="btn btn-primary"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '12px 24px',
+                          fontSize: '0.94rem',
+                          fontWeight: 700,
+                        }}
+                      >
+                        <span>Continue to Complaint Form</span>
+                        <ArrowRight size={18} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setOrgVerificationMode('verify')}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--color-primary)',
+                          fontSize: '0.86rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                        }}
+                      >
+                        &larr; Switch to Organization Verification
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
             {/* ══════════════════════════════════════════════════════════════
                 STEP 1: REPORTING PREFERENCE
                 ══════════════════════════════════════════════════════════════ */}
@@ -1338,6 +2015,7 @@ export default function ReportPage() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
                   {[
+                    ['Organization Affiliation', verifiedOrg ? `Verified — ${verifiedOrg.organizationName} (${verifiedOrg.organizationType === 'employee' ? 'Company Employee' : 'College Student'})` : 'Unverified (Anonymous / General Reporting)'],
                     ['Reporting Preference', step1Data.isAnonymous ? 'Anonymous Reporting (No personal identity recorded)' : `Identified — ${step1Data.reporterName || 'Name provided'}`],
                     ['Incident Category', CATEGORIES.find(c => c.value === step2Data.incidentCategory)?.label || 'Not specified'],
                     ['Incident Date', step2Data.incidentDate || 'Not specified'],
@@ -1748,7 +2426,7 @@ export default function ReportPage() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <SuccessScreen result={result} />
+                <SuccessScreen result={result} verifiedOrg={verifiedOrg} />
               </motion.div>
             )}
           </AnimatePresence>
