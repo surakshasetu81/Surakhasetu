@@ -1,0 +1,42 @@
+{
+  "model_version": "v2026.3-multilingual",
+  "is_demo_model": true,
+  "dataset_type": "synthetic_development_sample",
+  "dataset_size": 80,
+  "training_size": 64,
+  "test_size": 16,
+  "classes": [
+    "HIGH",
+    "MEDIUM",
+    "LOW"
+  ],
+  "metrics": {
+    "accuracy": 0.9375,
+    "macro_f1": 0.9259259259259259,
+    "high_priority_recall": 1.0,
+    "high_priority_precision": 1.0,
+    "medium_priority_recall": 0.8,
+    "medium_priority_precision": 1.0,
+    "low_priority_recall": 1.0,
+    "low_priority_precision": 0.8,
+    "confusion_matrix": [
+      [
+        7,
+        0,
+        0
+      ],
+      [
+        0,
+        4,
+        1
+      ],
+      [
+        0,
+        0,
+        4
+      ]
+    ]
+  },
+  "trained_at": "2026-10-25T19:15:19.264855+00:00",
+  "disclaimer": "Trained on synthetic development sample for architectural integration and pipeline validation. Not certified as a standalone clinical or legal decision system."
+}

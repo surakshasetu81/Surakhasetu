@@ -1,0 +1,81 @@
+case_id,narrative,language,context_type,immediate_danger,physical_force,ongoing_threats,stalking,target_minor,urgent_support_requested,priority
+DEV-001,"The accused attacked me with a blade in the parking lot and threatened to kill me if I report it.",en,workplace,1,1,1,1,0,1,HIGH
+DEV-002,"Mere manager ne office me hath pakad kar zabardasti kheenchne ki koshish ki aur dhamki di ki kisi ko bataya to naukri se nikaal dega.",hinglish,workplace,1,1,1,0,0,1,HIGH
+DEV-003,"आरोपी ने कॉलेज के बाहर मेरा रास्ता रोका और तेज़ाब फेंकने की धमकी दी। मेरी जान को गंभीर खतरा है।",hi,academic,1,0,1,1,0,1,HIGH
+DEV-004,"Colleague has been following my car home every day after night shift. Yesterday he banged on my apartment door shouting threats.",en,workplace,1,0,1,1,0,1,HIGH
+DEV-005,"Physical assault took place in the department store room. The supervisor locked the door and physically restrained me.",en,workplace,1,1,1,0,0,1,HIGH
+DEV-006,"A school bus conductor misbehaved with a 14 year old minor student and threatened her not to tell her parents.",en,academic,1,1,1,0,1,1,HIGH
+DEV-007,"नाबालिग बच्ची के साथ ट्यूशन टीचर ने छेड़छाड़ और अश्लील हरकतें की हैं। तुरंत सुरक्षा की आवश्यकता है।",hi,academic,1,1,1,0,1,1,HIGH
+DEV-008,"Ex-boyfriend is threatening to leak private photographs on social media unless I meet him tonight at an isolated location.",en,domestic,1,0,1,0,0,1,HIGH
+DEV-009,"Senior team lead is blackmailing me with termination if I do not accompany him to a hotel. He has followed me to the metro station.",en,workplace,1,0,1,1,0,1,HIGH
+DEV-010,"रात में काम से लौटते समय दो लोग रोज़ बाइक से पीछा करते हैं और अश्लील इशारे करते हैं। मुझे रास्ते में जाने से डर लग रहा है।",hi,public,1,0,1,1,0,1,HIGH
+DEV-011,"Mujhe office ke baad follow karta hai aur bolta hai ki tumhare photos viral kar dunga agar baat nahi maani.",hinglish,workplace,1,0,1,1,0,1,HIGH
+DEV-012,"Team member constantly makes sexually colored jokes in meetings and sent inappropriate WhatsApp messages after office hours.",en,workplace,0,0,0,0,0,0,MEDIUM
+DEV-013,"Manager repeatedly asks personal intrusive questions about my marriage and relationship status during 1-on-1 performance reviews.",en,workplace,0,0,0,0,0,0,MEDIUM
+DEV-014,"ऑफिस में सीनियर कर्मचारी लगातार अश्लील टिप्पणियां करता है और जब मना किया तो काम में बाधा डालने लगा।",hi,workplace,0,0,0,0,0,0,MEDIUM
+DEV-015,"Colleague stands uncomfortably close to my desk despite multiple verbal requests to maintain personal boundaries.",en,workplace,0,0,0,0,0,0,MEDIUM
+DEV-016,"Hr head ignores complaints about persistent gender bias and offensive remarks made by sales directors in company townhalls.",en,workplace,0,0,0,0,0,0,MEDIUM
+DEV-017,"Client sent unsolicited messages on LinkedIn professing personal affection and became hostile when I stated communications must remain strictly professional.",en,workplace,0,0,0,0,0,0,MEDIUM
+DEV-018,"Project lead repeatedly assigns degrading work and mocked my accent in front of the entire team after I declined dinner invitations.",en,workplace,0,0,0,0,0,0,MEDIUM
+DEV-019,"Meri team me gender discrimination hota hai, promotion ke time women ko avoid karte hain aur offensive comments pass karte hain.",hinglish,workplace,0,0,0,0,0,0,MEDIUM
+DEV-020,"सहकर्मी ने ईमेल पर आपत्तिजनक तस्वीरें भेजी हैं। मैंने आंतरिक समिति (IC) में शिकायत की प्रक्रिया समझनी है।",hi,workplace,0,0,0,0,0,0,MEDIUM
+DEV-021,"Colleague created a fake social media profile using my professional name and made derogatory posts. Need formal investigation.",en,cyber,0,0,0,0,0,0,MEDIUM
+DEV-022,"I would like to know the policy regarding workplace harassment complaints and the composition of the Internal Committee.",en,workplace,0,0,0,0,0,0,LOW
+DEV-023,"Seeking legal awareness brochures and POSH Act guidelines for an upcoming employee onboarding session in our branch.",en,workplace,0,0,0,0,0,0,LOW
+DEV-024,"कंपनी में विशाखा दिशानिर्देश और पॉश अधिनियम 2013 के नियमों की जानकारी चाहिए ताकि हम नई नीति बना सकें।",hi,workplace,0,0,0,0,0,0,LOW
+DEV-025,"Please provide contact numbers for local legal aid cells and women welfare organizations in Pune district for reference.",en,public,0,0,0,0,0,0,LOW
+DEV-026,"General inquiry regarding how evidence vault stores encrypted files and what verification codes are issued.",en,public,0,0,0,0,0,0,LOW
+DEV-027,"Hamare office me POSH training conduct karni hai, kya aap awareness material ya speaker contacts provide kar sakte hain?",hinglish,workplace,0,0,0,0,0,0,LOW
+DEV-028,"Requesting general documentation template for recording workplace grievances under standard HR protocols.",en,workplace,0,0,0,0,0,0,LOW
+DEV-029,"कार्यालय में शिकायत पेटी (complaint box) लगाने के नियमों और समय सीमा के बारे में सामान्य जानकारी चाहिए।",hi,workplace,0,0,0,0,0,0,LOW
+DEV-030,"Inquiry about how anonymous reporting works on Suraksha Setu and what recovery code is used for.",en,public,0,0,0,0,0,0,LOW
+DEV-031,"My director grabbed my arm violently in the corridor, pushed me into an empty conference room and locked the exit door.",en,workplace,1,1,1,0,0,1,HIGH
+DEV-032,"Vendor representative is stalking my house and sends messages detailing my clothes and daily arrival times.",en,workplace,1,0,1,1,0,1,HIGH
+DEV-033,"आरोपी ने मुझे चाकू दिखाकर धमकी दी कि अगर केस वापस नहीं लिया तो परिणाम बहुत बुरे होंगे।",hi,public,1,1,1,0,0,1,HIGH
+DEV-034,"Colleague deliberately touches my waist whenever passing through narrow cafeteria aisles despite being told to stop.",en,workplace,0,1,0,0,0,0,MEDIUM
+DEV-035,"Supervisor threatened to give negative annual review ratings after I refused to attend a private weekend trip with him.",en,workplace,0,0,1,0,0,0,MEDIUM
+DEV-036,"Does the POSH Act apply to remote workers working from home? Need legal information for reference.",en,workplace,0,0,0,0,0,0,LOW
+DEV-037,"What is the standard procedure to constitute an Internal Complaints Committee if an organization has 15 employees?",en,workplace,0,0,0,0,0,0,LOW
+DEV-038,"A senior colleague slapped me during an argument in the laboratory and warned me he has political connections.",en,academic,1,1,1,0,0,1,HIGH
+DEV-039,"Manager continuously sends suggestive emojis late at night and gets angry during morning meetings if not replied to.",en,workplace,0,0,0,0,0,0,MEDIUM
+DEV-040,"महिला हेल्पलाइन 181 और राष्ट्रीय महिला आयोग के नंबरों की सत्यापित सूची चाहिए।",hi,public,0,0,0,0,0,0,LOW
+DEV-041,"He intercepted me while leaving the hospital after my night shift and attempted to pull me towards his vehicle.",en,workplace,1,1,1,1,0,1,HIGH
+DEV-042,"Department head makes sexually explicit remarks about female interns clothing during weekly project review standups.",en,workplace,0,0,0,0,0,0,MEDIUM
+DEV-043,"Minor school girl was subjected to inappropriate touching by an instructor during sports training sessions.",en,academic,1,1,1,0,1,1,HIGH
+DEV-044,"General inquiry regarding whether conciliation can involve monetary settlement under Section 10 of POSH Act.",en,workplace,0,0,0,0,0,0,LOW
+DEV-045,"Colleague keeps calling from unknown numbers and breathed heavily before hanging up over 20 times today.",en,workplace,1,0,1,1,0,0,HIGH
+DEV-046,"Boss told me women should stay in kitchen and denies all challenging assignments to female engineers.",en,workplace,0,0,0,0,0,0,MEDIUM
+DEV-047,"Dhamki mili hai ki agar office IC me complaint file ki to acid attack kar denge. Bahut dar lag raha hai.",hinglish,workplace,1,0,1,0,0,1,HIGH
+DEV-048,"What is the limitation period for filing a complaint before the Local Committee under the POSH framework?",en,workplace,0,0,0,0,0,0,LOW
+DEV-049,"Manager cornered me in the elevator, tried to kiss me and threatened that nobody will believe my story.",en,workplace,1,1,1,0,0,1,HIGH
+DEV-050,"Coworker continuously stares and makes humming noises whenever I walk past his cubicle.",en,workplace,0,0,0,0,0,0,MEDIUM
+DEV-051,"Senior ne cabin me zabardasti haath pakda aur bola ki agar chikhne ki koshish ki to jaan se maar dunga.",hinglish,workplace,1,1,1,0,0,1,HIGH
+DEV-052,"Mujhe phone par dhamki di ja rahi hai ki office se bahar nikalte hi gaadi se uda denge.",hinglish,workplace,1,0,1,1,0,1,HIGH
+DEV-053,"Accused ne mere ghar tak peecha kiya aur zabardasti gate khol kar andar aane ki koshish ki.",hinglish,public,1,1,1,1,0,1,HIGH
+DEV-054,"Manager ne appraisal rok diya kyunki maine uske personal dinner par jaane se mana kar diya tha.",hinglish,workplace,0,0,0,0,0,0,MEDIUM
+DEV-055,"Colleague har roz vulgar double meaning jokes sunata hai aur ignore karne par rude behave karta hai.",hinglish,workplace,0,0,0,0,0,0,MEDIUM
+DEV-056,"Kya anonymous complaint karne par committee ko mera naam pata chal sakta hai? Process samjha dijiye.",hinglish,workplace,0,0,0,0,0,0,LOW
+DEV-057,"कंपनी के इंटरनल कंप्लेंट्स कमेटी के सदस्यों के नाम और ईमेल आईडी प्राप्त करने की प्रक्रिया क्या है?",hi,workplace,0,0,0,0,0,0,LOW
+DEV-058,"He blocked my car in the basement and banged on the windows shouting obscene threats to kill me.",en,workplace,1,1,1,1,0,1,HIGH
+DEV-059,"Team supervisor continuously cuts off female speakers and makes disparaging comments about women leadership.",en,workplace,0,0,0,0,0,0,MEDIUM
+DEV-060,"Where can I download the official POSH awareness posters in Hindi and English for office notice boards?",en,workplace,0,0,0,0,0,0,LOW
+DEV-061,"Someone forced sexual intercourse on me. I want to report the incident and need help.",en,public,0,1,0,0,0,1,HIGH
+DEV-062,"My colleague physically restrained me and attempted to sexually assault me. I am afraid the person may approach me again.",en,workplace,1,1,1,0,0,1,HIGH
+DEV-063,"I experienced rape several months ago. I am now seeking information and support.",en,public,0,0,0,0,0,1,HIGH
+DEV-064,"मेरे साथ बलात्कार हुआ है और मुझे मदद चाहिए।",hi,public,0,0,0,0,0,1,HIGH
+DEV-065,"Mere saath zabardasti sexual relation banaya gaya. Mujhe darr hai ki woh phir se mujhe harm karega.",hinglish,workplace,1,1,1,0,0,1,HIGH
+DEV-066,"I was sexually assaulted, but I do not have documents or files to upload.",en,public,0,1,0,0,0,1,HIGH
+DEV-067,"I feel that I may hurt myself tonight because of what has been happening.",en,domestic,1,0,0,0,0,1,HIGH
+DEV-068,"A report indicates possible sexual abuse involving a person under 18.",en,academic,1,1,1,0,1,1,HIGH
+DEV-069,"My supervisor repeatedly makes unwanted sexual remarks and threatens my appraisal if I complain.",en,workplace,0,0,1,0,0,0,MEDIUM
+DEV-070,"After the harassment at work, I feel frightened, distressed and unable to concentrate. I need support.",en,workplace,0,0,0,0,0,1,MEDIUM
+DEV-071,"How can I submit a workplace harassment complaint under the POSH Act?",en,workplace,0,0,0,0,0,0,LOW
+DEV-072,"Where can I read the Bharatiya Nyaya Sanhita definitions regarding sexual offenses and workplace safety?",en,public,0,0,0,0,0,0,LOW
+DEV-073,"Office me zabardasti rape attempt hua tha pichle hafte, abhi bhi trauma me hu aur assistance chahiye.",hinglish,workplace,0,1,0,0,0,1,HIGH
+DEV-074,"उसने मुझे कमरे में बंद करके जबरदस्ती दुष्कर्म किया। मुझे तुरंत कानूनी और चिकित्सीय सहायता चाहिए।",hi,workplace,1,1,1,0,0,1,HIGH
+DEV-075,"What are the penal consequences of rape under Section 63 of BNS 2023 for employee awareness?",en,workplace,0,0,0,0,0,0,LOW
+DEV-076,"Can an aggrieved person seek conciliation before formal inquiry under Section 10 of POSH Act?",en,workplace,0,0,0,0,0,0,LOW
+DEV-077,"Colleague repeatedly corners me in storage room and made explicit sexual assault threats.",en,workplace,1,1,1,0,0,1,HIGH
+DEV-078,"Boss continuously makes vulgar comments on my appearance and touched my back inappropriately during review.",en,workplace,0,0,0,0,0,0,MEDIUM
+DEV-079,"Senior colleague made inappropriate physical advances during team dinner and sent graphic messages.",en,workplace,0,0,0,0,0,0,MEDIUM
+DEV-080,"Is it mandatory for a company with 8 employees to constitute an Internal Committee or approach the Local Committee?",en,workplace,0,0,0,0,0,0,LOW

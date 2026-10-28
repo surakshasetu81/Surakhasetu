@@ -1,0 +1,17 @@
+{
+  "model_version": "v1.0.0-legal-multilabel",
+  "dataset_type": "synthetic_development_sample",
+  "is_demo_model": true,
+  "classes": [
+    "posh_act_2013",
+    "bns_2023",
+    "pocso_act_2012",
+    "ugc_regulations_2015",
+    "it_act_2000",
+    "general_workplace_misconduct",
+    "insufficient_information"
+  ],
+  "sample_count": 30,
+  "trained_at": "2026-10-25T09:03:49.073537+00:00",
+  "disclaimer": "Trained on synthetic development sample for architectural integration and pipeline validation. Advisory only."
+}

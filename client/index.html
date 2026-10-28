@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/images/suraksha-setu-emblem.png" />
+    <link rel="apple-touch-icon" href="/images/suraksha-setu-emblem.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Suraksha Setu — सुरक्षित कार्यस्थल, सशक्त समाज</title>
+    <meta name="description" content="SurakshaSetu is a secure, confidential platform for reporting incidents, tracking cases, and accessing legal awareness resources for women and child safety in India." />
+    <meta name="keywords" content="women safety, child safety, POSH Act, POCSO, complaint, India, workplace harassment" />
+    <meta property="og:title" content="SurakshaSetu — Women & Child Safety Platform" />
+    <meta property="og:description" content="A secure bridge between people seeking support and the resources that can help them." />
+    <meta name="theme-color" content="#C2185B" />
+    <script>
+      // Apply theme before render to avoid flash
+      (function() {
+        try {
+          var saved = localStorage.getItem('ss-theme');
+          var system = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', saved || system);
+        } catch(e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

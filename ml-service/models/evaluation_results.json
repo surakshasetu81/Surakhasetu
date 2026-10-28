@@ -1,0 +1,64 @@
+{
+  "dataset_evaluated": "sample_cases.csv",
+  "total_samples": 80,
+  "classes": [
+    "HIGH",
+    "MEDIUM",
+    "LOW"
+  ],
+  "overall_accuracy": 0.9875,
+  "macro_avg_f1": 0.9851851851851853,
+  "weighted_avg_f1": 0.9875,
+  "per_class_metrics": {
+    "HIGH": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "support": 35.0
+    },
+    "MEDIUM": {
+      "precision": 1.0,
+      "recall": 0.9565217391304348,
+      "f1_score": 0.9777777777777777,
+      "support": 23.0
+    },
+    "LOW": {
+      "precision": 0.9565217391304348,
+      "recall": 1.0,
+      "f1_score": 0.9777777777777777,
+      "support": 22.0
+    }
+  },
+  "confusion_matrix": {
+    "labels": [
+      "HIGH",
+      "MEDIUM",
+      "LOW"
+    ],
+    "matrix": [
+      [
+        35,
+        0,
+        0
+      ],
+      [
+        0,
+        22,
+        1
+      ],
+      [
+        0,
+        0,
+        22
+      ]
+    ]
+  },
+  "urgent_safety_analysis": {
+    "high_priority_total": 35,
+    "high_priority_missed_false_negatives": 0,
+    "false_negative_rate_high": 0.0,
+    "high_priority_false_positives": 0,
+    "false_positive_rate_high": 0.0,
+    "deterministic_rule_safeguard_note": "Deterministic safety rules (Layer 1) always override model predictions to ensure high-priority safety triggers are never suppressed."
+  }
+}
