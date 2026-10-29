@@ -212,17 +212,14 @@ app.use((req, res) => {
 
 let server;
 if (!process.env.VERCEL) {
-  const PORT = env.PORT || 5000;
-  // Initialize database before listening
-  connectDB().then(() => {
-    server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Suraksha Setu server running on port ${PORT}`);
-    });
-  }).catch(err => {
-    console.error('Database initialization error:', err);
-    server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Suraksha Setu server running on port ${PORT} (database degraded)`);
-    });
+  const PORT = process.env.PORT || env.PORT || 5000;
+  server = app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+
+  // Initialize database in background so port binding is immediate for Render
+  connectDB().catch(err => {
+    console.error("Database initialization error:", err.message);
   });
 
   // Graceful shutdown
