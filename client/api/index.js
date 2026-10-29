@@ -7,3 +7,4 @@ connectDB().catch(err => {
 });
 
 export default app;
+
