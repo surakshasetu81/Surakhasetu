@@ -89,42 +89,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-vault-token', 'x-simulate-offline'],
   exposedHeaders: ['Set-Cookie', 'x-evidence-iv', 'x-evidence-digest', 'x-evidence-original-name', 'x-evidence-mimetype'],
 }));
-  env.FRONTEND_ORIGIN,
-  env.CLIENT_URL,
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-]
-  .filter(Boolean)
-  .flatMap(item => item.split(',').map(s => s.trim().replace(/\/$/, '')));
-
-const isAllowedOrigin = (origin) => {
-  if (!origin) return true;
-  if (allowedOrigins.includes(origin)) return true;
-  try {
-    const parsed = new URL(origin);
-    const host = parsed.hostname.toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1') return true;
-    if (host.endsWith('.vercel.app') || host.endsWith('.onrender.com')) return true;
-    if (host.includes('suraksha') || host.includes('surakha')) return true;
-  } catch {
-    if (origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com')) return true;
-  }
-  return true; // Authorized API requests are validated via Bearer JWT
-};
-
-app.use(cors({
-  origin: (origin, callback) => {
-    if (isAllowedOrigin(origin)) {
-      return callback(null, origin || true);
-    }
-    return callback(null, allowedOrigins[0] || true);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-vault-token', 'x-simulate-offline'],
-  exposedHeaders: ['Set-Cookie', 'x-evidence-iv', 'x-evidence-digest', 'x-evidence-original-name', 'x-evidence-mimetype'],
-}));
 
 // Rate limiting
 const generalLimiter = rateLimit({
@@ -154,27 +118,35 @@ app.use(cookieParser(env.COOKIE_SECRET));
 // Static uploads directory (restricted)
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
-// Mount API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/reports', reportsRoutes);
-app.use('/api/cases', caseRoutes);
-app.use('/api/evidence', evidenceRoutes);
-app.use('/api/proof', proofRoutes);
-app.use('/api/legal', legalRoutes);
-app.use('/api/awareness', awarenessRoutes);
-app.use('/api/support', supportRoutes);
-app.use('/api/public', publicRoutes);
-app.use('/api', dashboardRoutes);
-app.use('/api/settings', settingsRoutes);
-app.use('/api/resources', resourceRoutes);
-app.use('/api/staff', staffRoutes);
-app.use('/api/legal-assessment', legalAssessmentRoutes);
-app.use('/api/vault', vaultRoutes);
-app.use('/api/verification', verificationRoutes);
-app.use('/api/assistant', assistantRoutes);
+// Mount API routes (supports both /api/* and root /* rewrites across Vercel and local dev)
+const routeList = [
+  ['/auth', authRoutes],
+  ['/reports', reportsRoutes],
+  ['/cases', caseRoutes],
+  ['/evidence', evidenceRoutes],
+  ['/proof', proofRoutes],
+  ['/legal', legalRoutes],
+  ['/awareness', awarenessRoutes],
+  ['/support', supportRoutes],
+  ['/public', publicRoutes],
+  ['/settings', settingsRoutes],
+  ['/resources', resourceRoutes],
+  ['/staff', staffRoutes],
+  ['/legal-assessment', legalAssessmentRoutes],
+  ['/vault', vaultRoutes],
+  ['/verification', verificationRoutes],
+  ['/assistant', assistantRoutes],
+];
 
-// General Health check endpoint
-app.get('/api/health', (req, res) => {
+for (const [prefix, router] of routeList) {
+  app.use(`/api${prefix}`, router);
+  app.use(prefix, router);
+}
+app.use('/api', dashboardRoutes);
+app.use('/', dashboardRoutes);
+
+// Health check endpoints (mounted on both /api/health and /health)
+const handleHealth = (req, res) => {
   const dbDetails = getDatabaseDetails();
   const isConnected = isDatabaseConnected();
   res.status(isConnected ? 200 : 503).json({
@@ -185,17 +157,16 @@ app.get('/api/health', (req, res) => {
     isDatabaseConnected: isConnected,
     timestamp: new Date().toISOString(),
   });
-});
+};
 
-// Dedicated Database Health check endpoint
-app.get('/api/health/db', (req, res) => {
+const handleDbHealth = (req, res) => {
   const dbDetails = getDatabaseDetails();
   const isConnected = isDatabaseConnected();
   const isDev = env.NODE_ENV === 'development';
 
   const responsePayload = {
     success: isConnected,
-    status: dbDetails.state, // 'CONNECTED', 'DISCONNECTED', 'CONFIGURATION_MISSING', 'CONNECTION_ATTEMPT_FAILED'
+    status: dbDetails.state,
     connected: isConnected,
     timestamp: new Date().toISOString(),
   };
@@ -208,13 +179,15 @@ app.get('/api/health/db', (req, res) => {
     return res.status(200).json(responsePayload);
   }
 
-  // In development mode, provide sanitized technical diagnostic without leaking credentials
   if (isDev && dbDetails.diagnostic) {
     responsePayload.diagnostic = dbDetails.diagnostic;
   }
 
   return res.status(503).json(responsePayload);
-});
+};
+
+app.get(['/api/health', '/health'], handleHealth);
+app.get(['/api/health/db', '/health/db'], handleDbHealth);
 
 // Centralized error handler
 app.use((err, req, res, next) => {
@@ -226,9 +199,15 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
+// Centralized 404 handler with sanitized route diagnostics
 app.use((req, res) => {
-  res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` });
+  res.status(404).json({
+    success: false,
+    errorCategory: 'ROUTE_NOT_FOUND',
+    message: `API endpoint not found: ${req.method} ${req.originalUrl}`,
+    method: req.method,
+    path: req.originalUrl,
+  });
 });
 
 let server;
