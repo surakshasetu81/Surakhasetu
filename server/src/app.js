@@ -148,6 +148,8 @@ for (const [prefix, router] of routeList) {
 }
 app.use('/api', dashboardRoutes);
 app.use('/', dashboardRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check endpoints (mounted on both /api/health and /health)
 const handleHealth = (req, res) => {
