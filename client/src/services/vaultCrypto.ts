@@ -2,12 +2,23 @@
  * Suraksha Setu — Client-Side Proof Vault Cryptography Engine
  * 
  * Cryptographic Specifications:
- * - Cipher: Authenticated AES-256-GCM
- * - Nonce: 12-byte cryptographically random IV (never reused)
- * - Key Derivation: PBKDF2-HMAC-SHA256 (100,000 iterations, 128-bit salt)
+ * - Cipher: Authenticated AES-GCM with a 256-bit derived key
+ * - Web Crypto Algorithm Identifier: 'AES-GCM'
+ * - Nonce: Fresh 12-byte cryptographically secure random IV generated per encryption
+ * - Key Derivation: PBKDF2-HMAC-SHA256 (100,000 iterations, 128-bit random salt)
  * - Tamper Evidence: SHA-256 digest on ciphertext + AES-GCM 128-bit authentication tag
  * - Zero Knowledge: Server receives only encrypted bytes; keys exist solely in transient memory.
  */
+
+function getCrypto(): Crypto {
+  if (typeof window !== 'undefined' && window.crypto) {
+    return window.crypto;
+  }
+  if (typeof globalThis !== 'undefined' && globalThis.crypto) {
+    return globalThis.crypto as unknown as Crypto;
+  }
+  throw new Error('Web Crypto API is not available in the current environment.');
+}
 
 function base64ToUint8Array(base64: string): Uint8Array {
   const binaryString = atob(base64);
@@ -37,9 +48,11 @@ function bufferToHex(buffer: ArrayBuffer): string {
  * Derives a 256-bit AES-GCM encryption key from the vault secret key and salt using PBKDF2
  */
 export async function deriveVaultKey(secretKey: string, saltBase64: string): Promise<CryptoKey> {
+  const cryptoObj = getCrypto();
   const encoder = new TextEncoder();
   const cleanKey = secretKey.trim().toUpperCase();
-  const keyMaterial = await window.crypto.subtle.importKey(
+
+  const keyMaterial = await cryptoObj.subtle.importKey(
     'raw',
     encoder.encode(cleanKey),
     { name: 'PBKDF2' },
@@ -49,7 +62,7 @@ export async function deriveVaultKey(secretKey: string, saltBase64: string): Pro
 
   const saltBytes = base64ToUint8Array(saltBase64);
 
-  return window.crypto.subtle.deriveKey(
+  return cryptoObj.subtle.deriveKey(
     {
       name: 'PBKDF2',
       salt: saltBytes.buffer as ArrayBuffer,
@@ -65,6 +78,7 @@ export async function deriveVaultKey(secretKey: string, saltBase64: string): Pro
 
 /**
  * Encrypts an ArrayBuffer of plaintext evidence in the browser before upload
+ * Uses AES-GCM with a fresh, cryptographically secure 12-byte IV for every file.
  */
 export async function encryptEvidence(
   plaintextBuffer: ArrayBuffer,
@@ -74,20 +88,23 @@ export async function encryptEvidence(
   ivBase64: string;
   ciphertextHash: string;
 }> {
-  // Fresh 12-byte random IV for every file
-  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const cryptoObj = getCrypto();
 
-  const ciphertext = await window.crypto.subtle.encrypt(
+  // Fresh 12-byte random IV for every file (never reused)
+  const iv = cryptoObj.getRandomValues(new Uint8Array(12));
+
+  // The Web Crypto API standard algorithm identifier for AES in Galois/Counter Mode is 'AES-GCM'
+  const ciphertext = await cryptoObj.subtle.encrypt(
     {
-      name: 'AES-256-GCM',
-      iv,
+      name: 'AES-GCM',
+      iv: iv as unknown as BufferSource,
     },
     key,
     plaintextBuffer
   );
 
-  // Compute SHA-256 hash of the ciphertext for integrity checking
-  const hashBuffer = await window.crypto.subtle.digest('SHA-256', ciphertext);
+  // Compute SHA-256 hash of the ciphertext for integrity checking and tamper evidence
+  const hashBuffer = await cryptoObj.subtle.digest('SHA-256', ciphertext);
   const ciphertextHash = bufferToHex(hashBuffer);
 
   return {
@@ -105,18 +122,19 @@ export async function decryptEvidence(
   ivBase64: string,
   key: CryptoKey
 ): Promise<ArrayBuffer> {
+  const cryptoObj = getCrypto();
   const iv = base64ToUint8Array(ivBase64);
 
   try {
-    return await window.crypto.subtle.decrypt(
+    return await cryptoObj.subtle.decrypt(
       {
-        name: 'AES-256-GCM',
+        name: 'AES-GCM',
         iv: iv.buffer as ArrayBuffer,
       },
       key,
       ciphertextBuffer
     );
-  } catch (err) {
+  } catch (err: any) {
     throw new Error('Authenticated decryption failed. Invalid secret key or ciphertext has been tampered with.');
   }
 }
@@ -128,7 +146,8 @@ export async function verifyCiphertextHash(
   ciphertextBuffer: ArrayBuffer,
   expectedHashHex: string
 ): Promise<boolean> {
-  const hashBuffer = await window.crypto.subtle.digest('SHA-256', ciphertextBuffer);
+  const cryptoObj = getCrypto();
+  const hashBuffer = await cryptoObj.subtle.digest('SHA-256', ciphertextBuffer);
   const actualHash = bufferToHex(hashBuffer);
   return actualHash === expectedHashHex.trim().toUpperCase();
 }
@@ -155,8 +174,8 @@ CREATION DATE:
 ${createdAt}
 
 ENCRYPTION SUITE:
-AES-256-GCM (Authenticated Encryption with Web Crypto API)
-PBKDF2-HMAC-SHA256 (100,000 Iterations)
+AES-GCM 256-bit (Authenticated Encryption with Web Crypto API)
+PBKDF2-HMAC-SHA256 (100,000 Iterations with unique 128-bit salt)
 
 CRITICAL SECURITY NOTICE:
 1. Your evidence is encrypted directly on your device before transmission.
