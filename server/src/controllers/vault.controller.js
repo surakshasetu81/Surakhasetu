@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import Vault from '../models/Vault.js';
 import VaultEvidence from '../models/VaultEvidence.js';
+import Case from '../models/Case.js';
 import { appendVaultAuditEvent, verifyVaultAuditChain } from '../services/vaultAuditService.js';
 import { isDatabaseConnected } from '../config/database.js';
 
@@ -231,6 +232,27 @@ export const getVaultMetadata = async (req, res) => {
   }
 };
 
+
+/**
+ * Helper to verify authorization for linking evidence to a case.
+ * A user can link evidence to a case if:
+ * 1. They provide the case's recoveryCode/recoveryKey, and bcrypt.compare matches case.recoveryCodeHash.
+ * 2. OR they are authenticated staff (req.user) and have permission (admin, ic_member, or assigned case_officer).
+ */
+export async function verifyCaseOwnership(targetCase, recoveryCode, user) {
+  if (user && ['admin', 'ic_member', 'case_officer'].includes(user.role)) {
+    if (user.role === 'case_officer' && String(targetCase.assignedTo) !== String(user._id)) {
+      return false;
+    }
+    return true;
+  }
+  if (recoveryCode && targetCase.recoveryCodeHash) {
+    const cleanKey = recoveryCode.trim().toUpperCase();
+    return await bcrypt.compare(cleanKey, targetCase.recoveryCodeHash);
+  }
+  return false;
+}
+
 /**
  * 4. Upload Encrypted Evidence
  */
@@ -243,12 +265,40 @@ export const uploadEncryptedEvidence = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Encrypted evidence file is required.' });
   }
 
-  const { iv, ciphertextHash, originalName, category, mimeType, notes } = req.body;
+  const { iv, ciphertextHash, originalName, category, mimeType, notes, caseId, recoveryCode, recoveryKey } = req.body;
 
   if (!iv || !ciphertextHash || !originalName) {
     // Clean up uploaded temporary file
     try { fs.unlinkSync(req.file.path); } catch (_) {}
     return res.status(400).json({ success: false, message: 'Missing cryptographic metadata (IV, ciphertext hash, or filename).' });
+  }
+
+  let linkedCaseDoc = null;
+  let linkingStatus = 'unlinked';
+  let linkedAt = null;
+  let linkedBy = null;
+
+  if (caseId && caseId.trim()) {
+    const cleanCaseId = caseId.trim().toUpperCase();
+    const targetCase = await Case.findOne({ caseId: cleanCaseId }).select('+recoveryCodeHash');
+    if (!targetCase) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+      return res.status(404).json({ success: false, message: `Case ID "${cleanCaseId}" does not exist in the repository.` });
+    }
+
+    const isAuthorized = await verifyCaseOwnership(targetCase, recoveryCode || recoveryKey, req.user);
+    if (!isAuthorized) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized: Invalid Recovery Key for this Case ID. You cannot link evidence to a complaint without verified case ownership.',
+      });
+    }
+
+    linkedCaseDoc = targetCase;
+    linkingStatus = 'linked';
+    linkedAt = new Date();
+    linkedBy = req.user ? (req.user.staffId || req.user.name) : 'complainant';
   }
 
   try {
@@ -280,6 +330,13 @@ export const uploadEncryptedEvidence = async (req, res) => {
     const newEvidence = await VaultEvidence.create({
       evidenceId,
       vaultId: req.vaultId,
+      caseId: linkedCaseDoc ? linkedCaseDoc.caseId : null,
+      case: linkedCaseDoc ? linkedCaseDoc._id : null,
+      linkingStatus,
+      linkedAt,
+      linkedBy,
+      integrityStatus: 'verified',
+      lastIntegrityCheckAt: new Date(),
       storageFileName,
       originalName: originalName.trim(),
       category: category || 'document',
@@ -294,6 +351,19 @@ export const uploadEncryptedEvidence = async (req, res) => {
       backupVerified: true,
       backupVerifiedAt: new Date(),
     });
+
+    if (linkedCaseDoc) {
+      if (!linkedCaseDoc.vaultEvidence) linkedCaseDoc.vaultEvidence = [];
+      linkedCaseDoc.vaultEvidence.push(newEvidence._id);
+      await linkedCaseDoc.save();
+
+      await appendVaultAuditEvent(req.vaultId, 'EVIDENCE_LINKED_TO_CASE', {
+        evidenceId,
+        caseId: linkedCaseDoc.caseId,
+        linkedBy,
+        timestamp: new Date(),
+      });
+    }
 
     // Update vault totals
     await Vault.findOneAndUpdate(
@@ -330,6 +400,10 @@ export const uploadEncryptedEvidence = async (req, res) => {
         sha256Digest: newEvidence.sha256Digest,
         notes: newEvidence.notes,
         createdAt: newEvidence.createdAt,
+        caseId: newEvidence.caseId,
+        linkingStatus: newEvidence.linkingStatus,
+        linkedAt: newEvidence.linkedAt,
+        integrityStatus: newEvidence.integrityStatus,
         backupVerified: true,
       },
     });
@@ -348,10 +422,43 @@ export const listEvidence = async (req, res) => {
   }
 
   try {
-    const items = await VaultEvidence.find({
+    const { caseId, category, search, linkingStatus, startDate, endDate } = req.query;
+    const query = {
       vaultId: req.vaultId,
       isDeleted: false,
-    }).sort({ createdAt: -1 });
+    };
+
+    if (caseId && caseId.trim()) {
+      query.caseId = caseId.trim().toUpperCase();
+    }
+
+    if (category && category !== 'all') {
+      query.category = category;
+    }
+
+    if (linkingStatus === 'linked') {
+      query.linkingStatus = 'linked';
+    } else if (linkingStatus === 'unlinked') {
+      query.linkingStatus = 'unlinked';
+    }
+
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    if (search && search.trim()) {
+      const regex = new RegExp(search.trim(), 'i');
+      query.$or = [
+        { originalName: regex },
+        { caseId: regex },
+        { notes: regex },
+        { category: regex },
+      ];
+    }
+
+    const items = await VaultEvidence.find(query).sort({ createdAt: -1 });
 
     const safeList = items.map(item => ({
       evidenceId: item.evidenceId,
@@ -364,6 +471,10 @@ export const listEvidence = async (req, res) => {
       encryptionVersion: item.encryptionVersion,
       notes: item.notes,
       createdAt: item.createdAt,
+      caseId: item.caseId,
+      linkingStatus: item.linkingStatus || (item.caseId ? 'linked' : 'unlinked'),
+      linkedAt: item.linkedAt,
+      integrityStatus: item.integrityStatus || 'verified',
       backupVerified: item.backupVerified,
       backupVerifiedAt: item.backupVerifiedAt,
     }));
@@ -375,6 +486,257 @@ export const listEvidence = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to retrieve evidence list.' });
+  }
+};
+
+/**
+ * 5b. Link an existing evidence item to a Case ID
+ */
+export const linkEvidenceToCase = async (req, res) => {
+  if (!isDatabaseConnected()) {
+    return res.status(503).json({ success: false, message: 'Database service is currently unavailable.' });
+  }
+
+  const { evidenceId } = req.params;
+  const { caseId, recoveryCode, recoveryKey } = req.body;
+
+  if (!caseId || !caseId.trim()) {
+    return res.status(400).json({ success: false, message: 'Case ID / Report ID is required to link evidence.' });
+  }
+
+  try {
+    const evidence = await VaultEvidence.findOne({
+      evidenceId,
+      vaultId: req.vaultId,
+      isDeleted: false,
+    });
+
+    if (!evidence) {
+      return res.status(404).json({ success: false, message: 'Evidence record not found in this vault.' });
+    }
+
+    const cleanCaseId = caseId.trim().toUpperCase();
+    const targetCase = await Case.findOne({ caseId: cleanCaseId }).select('+recoveryCodeHash');
+    if (!targetCase) {
+      return res.status(404).json({ success: false, message: `Case ID "${cleanCaseId}" not found.` });
+    }
+
+    const isAuthorized = await verifyCaseOwnership(targetCase, recoveryCode || recoveryKey, req.user);
+    if (!isAuthorized) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized: Invalid Recovery Key for this Case ID. You cannot attach evidence to someone else\'s complaint.',
+      });
+    }
+
+    evidence.caseId = targetCase.caseId;
+    evidence.case = targetCase._id;
+    evidence.linkingStatus = 'linked';
+    evidence.linkedAt = new Date();
+    evidence.linkedBy = req.user ? (req.user.staffId || req.user.name) : 'complainant';
+    await evidence.save();
+
+    if (!targetCase.vaultEvidence) targetCase.vaultEvidence = [];
+    if (!targetCase.vaultEvidence.some(id => String(id) === String(evidence._id))) {
+      targetCase.vaultEvidence.push(evidence._id);
+      await targetCase.save();
+    }
+
+    await appendVaultAuditEvent(req.vaultId, 'EVIDENCE_LINKED_TO_CASE', {
+      evidenceId,
+      caseId: targetCase.caseId,
+      linkedBy: evidence.linkedBy,
+      timestamp: new Date(),
+    });
+
+    res.json({
+      success: true,
+      message: `Evidence successfully associated with Case ${targetCase.caseId}.`,
+      evidence: {
+        evidenceId: evidence.evidenceId,
+        caseId: evidence.caseId,
+        linkingStatus: evidence.linkingStatus,
+        linkedAt: evidence.linkedAt,
+      },
+    });
+  } catch (err) {
+    console.error('Error linking evidence:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to link evidence to case.' });
+  }
+};
+
+/**
+ * 5c. Unlink evidence from a Case ID
+ */
+export const unlinkEvidenceFromCase = async (req, res) => {
+  if (!isDatabaseConnected()) {
+    return res.status(503).json({ success: false, message: 'Database service is currently unavailable.' });
+  }
+
+  const { evidenceId } = req.params;
+
+  try {
+    const evidence = await VaultEvidence.findOne({
+      evidenceId,
+      vaultId: req.vaultId,
+      isDeleted: false,
+    });
+
+    if (!evidence) {
+      return res.status(404).json({ success: false, message: 'Evidence record not found in this vault.' });
+    }
+
+    const previousCaseId = evidence.caseId;
+    if (evidence.case) {
+      await Case.findByIdAndUpdate(evidence.case, {
+        $pull: { vaultEvidence: evidence._id },
+      });
+    }
+
+    evidence.caseId = null;
+    evidence.case = null;
+    evidence.linkingStatus = 'unlinked';
+    evidence.linkedAt = null;
+    evidence.linkedBy = null;
+    await evidence.save();
+
+    await appendVaultAuditEvent(req.vaultId, 'EVIDENCE_UNLINKED_FROM_CASE', {
+      evidenceId,
+      previousCaseId,
+      timestamp: new Date(),
+    });
+
+    res.json({
+      success: true,
+      message: 'Evidence unlinked from case.',
+      evidence: {
+        evidenceId: evidence.evidenceId,
+        linkingStatus: evidence.linkingStatus,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to unlink evidence.' });
+  }
+};
+
+/**
+ * 5d. Staff Endpoint: Get Vault Evidence linked to a specific case
+ * Enforces least-privilege scoping and excludes private owner notes.
+ */
+export const getStaffCaseVaultEvidence = async (req, res) => {
+  if (!isDatabaseConnected()) {
+    return res.status(503).json({ success: false, message: 'Database service is currently unavailable.' });
+  }
+
+  const { caseId } = req.params;
+  const cleanCaseId = caseId.trim().toUpperCase();
+
+  try {
+    const targetCase = await Case.findOne({ caseId: cleanCaseId });
+    if (!targetCase) {
+      return res.status(404).json({ success: false, message: `Case ${cleanCaseId} not found.` });
+    }
+
+    // Role-based authorization
+    if (['case_officer', 'staff'].includes(req.user.role)) {
+      if (String(targetCase.assignedTo) !== String(req.user._id)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied: You are not authorized to view evidence for this unassigned case.',
+        });
+      }
+    }
+
+    const evidenceList = await VaultEvidence.find({
+      caseId: cleanCaseId,
+      isDeleted: false,
+    }).sort({ createdAt: -1 });
+
+    // Exclude private owner notes and encryption secrets
+    const safeEvidence = evidenceList.map(item => ({
+      evidenceId: item.evidenceId,
+      vaultId: item.vaultId,
+      caseId: item.caseId,
+      originalName: item.originalName,
+      category: item.category,
+      sizeBytes: item.sizeBytes,
+      mimeType: item.mimeType,
+      iv: item.iv,
+      sha256Digest: item.sha256Digest,
+      encryptionVersion: item.encryptionVersion,
+      linkingStatus: item.linkingStatus,
+      integrityStatus: item.integrityStatus || 'verified',
+      createdAt: item.createdAt,
+      linkedAt: item.linkedAt,
+      backupVerified: item.backupVerified,
+    }));
+
+    res.json({
+      success: true,
+      caseId: cleanCaseId,
+      count: safeEvidence.length,
+      evidence: safeEvidence,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to fetch case evidence.' });
+  }
+};
+
+/**
+ * 5e. Staff Endpoint: Download encrypted ciphertext for a case
+ */
+export const downloadStaffCaseVaultEvidence = async (req, res) => {
+  const { caseId, evidenceId } = req.params;
+  const cleanCaseId = caseId.trim().toUpperCase();
+
+  try {
+    const targetCase = await Case.findOne({ caseId: cleanCaseId });
+    if (!targetCase) {
+      return res.status(404).json({ success: false, message: 'Case not found.' });
+    }
+
+    if (['case_officer', 'staff'].includes(req.user.role)) {
+      if (String(targetCase.assignedTo) !== String(req.user._id)) {
+        return res.status(403).json({ success: false, message: 'Access denied.' });
+      }
+    }
+
+    const evidence = await VaultEvidence.findOne({
+      evidenceId,
+      caseId: cleanCaseId,
+      isDeleted: false,
+    });
+
+    if (!evidence) {
+      return res.status(404).json({ success: false, message: 'Evidence file not found for this case.' });
+    }
+
+    if (!fs.existsSync(evidence.storagePath)) {
+      if (evidence.backupPath && fs.existsSync(evidence.backupPath)) {
+        fs.copyFileSync(evidence.backupPath, evidence.storagePath);
+      } else {
+        return res.status(404).json({ success: false, message: 'Encrypted ciphertext missing on disk.' });
+      }
+    }
+
+    await appendVaultAuditEvent(evidence.vaultId, 'STAFF_ACCESSED_CIPHERTEXT', {
+      evidenceId: evidence.evidenceId,
+      caseId: cleanCaseId,
+      staffId: req.user.staffId || req.user.name,
+      timestamp: new Date(),
+    });
+
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${evidence.originalName}.enc"`);
+    res.setHeader('x-evidence-iv', evidence.iv);
+    res.setHeader('x-evidence-digest', evidence.sha256Digest);
+    res.setHeader('x-evidence-original-name', encodeURIComponent(evidence.originalName));
+    res.setHeader('x-evidence-mimetype', evidence.mimeType);
+
+    const stream = fs.createReadStream(evidence.storagePath);
+    stream.pipe(res);
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to download evidence.' });
   }
 };
 

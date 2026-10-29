@@ -220,6 +220,7 @@ const caseSchema = new mongoose.Schema({
   },
   assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   evidence: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Evidence' }],
+  vaultEvidence: [{ type: mongoose.Schema.Types.ObjectId, ref: 'VaultEvidence' }],
   isUrgent: { type: Boolean, default: false },
   employeeOrCollegeId: { type: String, trim: true, select: false },
   internalNotes: { type: String, select: false },
@@ -307,6 +308,7 @@ caseSchema.methods.toPublicJSON = function () {
     statutoryDueDate: this.statutoryDueDate,
     isOverdue: this.isOverdue || false,
     daysRemaining: typeof this.daysRemaining === 'number' ? this.daysRemaining : 60,
+    vaultEvidenceCount: (this.vaultEvidence || []).length,
     clarificationRequests: (this.clarificationRequests || []).map(r => ({
       requestId: r.requestId,
       question: r.question,

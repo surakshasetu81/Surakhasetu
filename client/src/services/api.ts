@@ -236,11 +236,44 @@ export const uploadVaultEvidence = async (token: string, formData: FormData) => 
   return res.data;
 };
 
-export const listVaultEvidence = async (token: string) => {
+export const listVaultEvidence = async (token: string, params: Record<string, string> = {}) => {
   const res = await api.get('/api/vault/evidence', {
+    headers: { Authorization: `Bearer ${token}` },
+    params,
+  });
+  return res.data;
+};
+
+export const linkVaultEvidence = async (token: string, evidenceId: string, payload: { caseId: string; recoveryCode?: string }) => {
+  const res = await api.post(`/api/vault/evidence/${evidenceId}/link`, payload, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.data;
+};
+
+export const unlinkVaultEvidence = async (token: string, evidenceId: string) => {
+  const res = await api.post(`/api/vault/evidence/${evidenceId}/unlink`, {}, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data;
+};
+
+export const getStaffCaseVaultEvidence = async (caseId: string) => {
+  const res = await api.get(`/api/cases/${caseId}/vault-evidence`);
+  return res.data;
+};
+
+export const downloadStaffCaseVaultEvidence = async (caseId: string, evidenceId: string) => {
+  const res = await api.get(`/api/cases/${caseId}/vault-evidence/${evidenceId}/download`, {
+    responseType: 'arraybuffer',
+  });
+  return {
+    data: res.data as ArrayBuffer,
+    iv: res.headers['x-evidence-iv'] || '',
+    digest: res.headers['x-evidence-digest'] || '',
+    originalName: decodeURIComponent(res.headers['x-evidence-original-name'] || 'evidence.bin'),
+    mimeType: res.headers['x-evidence-mimetype'] || 'application/octet-stream',
+  };
 };
 
 export const downloadVaultCiphertext = async (token: string, evidenceId: string) => {

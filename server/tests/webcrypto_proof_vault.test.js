@@ -152,3 +152,4 @@ if (failed > 0) {
 } else {
   console.log('ALL PROOF VAULT WEB CRYPTO VERIFICATION TESTS PASSED PERFECTLY!\n');
 }
+

@@ -17,6 +17,10 @@ import {
   closeOrReopenCase,
   complainantProvideClarification,
 } from '../controllers/case.controller.js';
+import {
+  getStaffCaseVaultEvidence,
+  downloadStaffCaseVaultEvidence,
+} from '../controllers/vault.controller.js';
 import { protect, authorize } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
@@ -35,6 +39,8 @@ const AUTHORITY_ROLES = ['admin', 'committee', 'ic_member'];
 router.get('/', protect, authorize(...READ_ROLES), getAllCases);
 router.get('/:caseId', protect, authorize(...READ_ROLES), getCaseById);
 router.get('/:caseId/assessment', protect, authorize(...READ_ROLES), getCaseAssessment);
+router.get('/:caseId/vault-evidence', protect, authorize(...READ_ROLES), getStaffCaseVaultEvidence);
+router.get('/:caseId/vault-evidence/:evidenceId/download', protect, authorize(...READ_ROLES), downloadStaffCaseVaultEvidence);
 
 router.patch('/:caseId/status', protect, authorize(...WORKFLOW_ROLES), updateCaseStatus);
 router.patch('/:caseId/priority', protect, authorize(...AUTHORITY_ROLES), overridePriority);

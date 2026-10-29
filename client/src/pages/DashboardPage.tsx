@@ -28,6 +28,7 @@ import {
   changePassword,
   verifyEvidenceChecksum,
   overrideCasePriority,
+  downloadStaffCaseVaultEvidence,
 } from '../services/api';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -142,6 +143,19 @@ interface CaseItem {
     size: number;
     sha256Hash: string;
     uploadedAt: string;
+  }>;
+  vaultEvidence?: Array<{
+    _id: string;
+    evidenceId: string;
+    originalName: string;
+    category: string;
+    sizeBytes: number;
+    mimeType: string;
+    sha256Digest: string;
+    linkingStatus?: string;
+    integrityStatus?: string;
+    createdAt: string;
+    backupVerified?: boolean;
   }>;
   internalNotesList?: Array<{
     _id: string;
@@ -1360,6 +1374,26 @@ export default function DashboardPage() {
                               <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>
                                 {new Date(c.createdAt).toLocaleDateString('en-IN')}
                               </div>
+                              {((c.vaultEvidence?.length || 0) + (c.evidence?.length || 0)) > 0 ? (
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  padding: '2px 7px',
+                                  borderRadius: 4,
+                                  background: 'rgba(22, 133, 107, 0.12)',
+                                  color: '#16856B',
+                                  fontWeight: 700,
+                                  fontSize: '0.68rem',
+                                  marginTop: 4,
+                                }}>
+                                  <FileText size={10} /> {((c.vaultEvidence?.length || 0) + (c.evidence?.length || 0))} Evidence File{((c.vaultEvidence?.length || 0) + (c.evidence?.length || 0)) > 1 ? 's' : ''}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', marginTop: 4, display: 'block' }}>
+                                  No Evidence Attached
+                                </span>
+                              )}
                             </td>
 
                             <td style={{ padding: '14px 16px' }}>
@@ -2072,14 +2106,121 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Section 6: Evidence Integrity Check */}
+            {/* Section 6: Evidence Integrity & Linked Vault Files */}
             <div className="card" style={{ padding: 18, marginBottom: 18 }}>
-              <h4 style={{ margin: '0 0 10px', fontSize: '0.92rem', fontWeight: 800 }}>Vault Evidence & Cryptographic Hashes</h4>
-              {(!selectedCase.evidence || selectedCase.evidence.length === 0) ? (
-                <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--color-text-secondary)' }}>No evidence attachments uploaded with this filing.</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <h4 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800 }}>
+                  Evidence & Proof Vault Cryptographic Records
+                </h4>
+                <span style={{
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                  background: 'var(--color-soft-pink)',
+                  color: 'var(--color-primary)',
+                  fontWeight: 700,
+                  fontSize: '0.76rem',
+                }}>
+                  {((selectedCase.vaultEvidence?.length || 0) + (selectedCase.evidence?.length || 0))} Attached
+                </span>
+              </div>
+
+              {((selectedCase.vaultEvidence?.length || 0) + (selectedCase.evidence?.length || 0)) === 0 ? (
+                <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--color-text-secondary)' }}>
+                  No evidence attachments or Proof Vault files linked to this complaint yet.
+                </p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {selectedCase.evidence.map((ev) => (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Linked Proof Vault Records */}
+                  {selectedCase.vaultEvidence && selectedCase.vaultEvidence.map((ve) => (
+                    <div key={ve._id || ve.evidenceId} style={{ padding: 12, background: 'var(--color-bg-secondary)', borderRadius: 10, border: '1px solid var(--color-border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--color-text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Lock size={13} color="var(--color-primary)" />
+                            {ve.originalName}
+                          </div>
+                          <div style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                            {ve.category?.toUpperCase()} • {Math.round((ve.sizeBytes || 0) / 1024)} KB • Uploaded {new Date(ve.createdAt).toLocaleDateString('en-IN')}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{
+                            padding: '2px 7px',
+                            borderRadius: 6,
+                            background: 'rgba(22, 133, 107, 0.12)',
+                            color: '#16856B',
+                            fontWeight: 700,
+                            fontSize: '0.72rem',
+                          }}>
+                            {ve.linkingStatus ? ve.linkingStatus.toUpperCase() : 'LINKED'}
+                          </span>
+                          <span style={{
+                            padding: '2px 7px',
+                            borderRadius: 6,
+                            background: 'rgba(37, 99, 235, 0.12)',
+                            color: '#2563EB',
+                            fontWeight: 700,
+                            fontSize: '0.72rem',
+                          }}>
+                            AES-256-GCM
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: '0.72rem', fontFamily: 'monospace', color: 'var(--color-text-secondary)', marginBottom: 8, wordBreak: 'break-all' }}>
+                        SHA-256: {ve.sha256Digest}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ fontSize: '0.74rem', color: '#16856B', fontWeight: 600 }}>
+                          ✓ Dual-Copy Verified (Primary + Local Replica)
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleVerifyEvidence(ve.evidenceId || ve._id)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '0.74rem', padding: '4px 8px' }}
+                          >
+                            Verify Integrity
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const res = await downloadStaffCaseVaultEvidence(selectedCase.caseId, ve.evidenceId);
+                                const blob = new Blob([res.data], { type: res.mimeType });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = res.originalName + '.enc';
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              } catch (err: any) {
+                                alert('Failed to download encrypted file: ' + (err.response?.data?.message || err.message));
+                              }
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '0.74rem', padding: '4px 8px' }}
+                          >
+                            Download Encrypted
+                          </button>
+                        </div>
+                      </div>
+
+                      {evidenceVerificationStatus[ve.evidenceId || ve._id] && (
+                        <div style={{ marginTop: 8, fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-success)', padding: '6px 10px', background: 'rgba(22, 133, 107, 0.1)', borderRadius: 6 }}>
+                          {evidenceVerificationStatus[ve.evidenceId || ve._id]}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Standard Form Uploaded Evidence */}
+                  {selectedCase.evidence && selectedCase.evidence.map((ev) => (
                     <div key={ev._id} style={{ padding: 10, background: 'var(--color-bg-secondary)', borderRadius: 8 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>

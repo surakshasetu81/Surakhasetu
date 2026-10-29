@@ -15,6 +15,8 @@ import {
   getVaultAuditTrail,
   lockVault,
   requireVaultSession,
+  linkEvidenceToCase,
+  unlinkEvidenceFromCase,
 } from '../controllers/vault.controller.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -48,6 +50,8 @@ router.post('/evidence/upload', requireVaultSession, upload.single('encryptedFil
 router.get('/evidence', requireVaultSession, listEvidence);
 router.get('/evidence/:evidenceId/download', requireVaultSession, downloadCiphertext);
 router.post('/evidence/:evidenceId/verify', requireVaultSession, verifyEvidenceIntegrity);
+router.post('/evidence/:evidenceId/link', requireVaultSession, linkEvidenceToCase);
+router.post('/evidence/:evidenceId/unlink', requireVaultSession, unlinkEvidenceFromCase);
 router.delete('/evidence/:evidenceId', requireVaultSession, deleteEvidence);
 router.get('/audit', requireVaultSession, getVaultAuditTrail);
 router.post('/lock', requireVaultSession, lockVault);

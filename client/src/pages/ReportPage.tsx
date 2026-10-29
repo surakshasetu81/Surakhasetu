@@ -52,7 +52,7 @@ interface SubmissionResult {
   submittedAt: string;
 }
 
-export const ALLOWED_INCIDENT_CATEGORIES = [
+const ALLOWED_INCIDENT_CATEGORIES = [
   'sexual_harassment',
   'workplace_harassment',
   'cyber_crime',
@@ -60,7 +60,7 @@ export const ALLOWED_INCIDENT_CATEGORIES = [
   'other',
 ] as const;
 
-export type AllowedIncidentCategory = typeof ALLOWED_INCIDENT_CATEGORIES[number];
+type AllowedIncidentCategory = typeof ALLOWED_INCIDENT_CATEGORIES[number];
 
 const CATEGORIES: { value: AllowedIncidentCategory; label: string; desc: string }[] = [
   {

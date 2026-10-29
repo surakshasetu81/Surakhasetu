@@ -4,7 +4,7 @@ import {
   Lock, Unlock, Shield, Key, Download, Trash2, CheckCircle2,
   AlertTriangle, Eye, EyeOff, Copy, Check, RefreshCw, FileText,
   Image as ImageIcon, Music, Video, Plus, Clock, Search,
-  CheckCircle, ArrowRight
+  CheckCircle, ArrowRight, Link, Unlink
 } from 'lucide-react';
 import {
   createVault,
@@ -17,6 +17,8 @@ import {
   deleteVaultEvidence,
   getVaultAuditTrail,
   lockVault,
+  linkVaultEvidence,
+  unlinkVaultEvidence,
 } from '../services/api';
 import {
   deriveVaultKey,
@@ -47,6 +49,10 @@ interface EvidenceItem {
   encryptionVersion: string;
   notes?: string;
   createdAt: string;
+  caseId?: string;
+  linkingStatus?: string;
+  linkedAt?: string;
+  integrityStatus?: string;
   backupVerified?: boolean;
   backupVerifiedAt?: string;
 }
@@ -93,10 +99,21 @@ export default function ProofVaultPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileCategory, setFileCategory] = useState('document');
   const [fileNotes, setFileNotes] = useState('');
+  const [uploadCaseId, setUploadCaseId] = useState('');
+  const [uploadRecoveryKey, setUploadRecoveryKey] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadStepMsg, setUploadStepMsg] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState('');
+
+  // ─── Case Linking & Filter State ───
+  const [linkingFilter, setLinkingFilter] = useState<'all' | 'linked' | 'unlinked'>('all');
+  const [linkModalItem, setLinkModalItem] = useState<EvidenceItem | null>(null);
+  const [linkModalCaseId, setLinkModalCaseId] = useState('');
+  const [linkModalRecoveryKey, setLinkModalRecoveryKey] = useState('');
+  const [linkModalSubmitting, setLinkModalSubmitting] = useState(false);
+  const [linkModalError, setLinkModalError] = useState('');
+  const [linkModalSuccess, setLinkModalSuccess] = useState('');
 
   // ─── Verification & Action State ───
   const [decryptingId, setDecryptingId] = useState<string | null>(null);
@@ -278,11 +295,20 @@ export default function ProofVaultPage() {
       formData.append('mimeType', selectedFile.type || 'application/octet-stream');
       formData.append('notes', fileNotes);
 
+      if (uploadCaseId.trim()) {
+        formData.append('caseId', uploadCaseId.trim().toUpperCase());
+        if (uploadRecoveryKey.trim()) {
+          formData.append('recoveryCode', uploadRecoveryKey.trim().toUpperCase());
+        }
+      }
+
       const res = await uploadVaultEvidence(token, formData);
       if (res.success) {
         setUploadSuccess(`"${selectedFile.name}" encrypted with AES-256-GCM and stored securely.`);
         setSelectedFile(null);
         setFileNotes('');
+        setUploadCaseId('');
+        setUploadRecoveryKey('');
         await loadEvidence();
         setTimeout(() => setActiveTab('evidence'), 1400);
       }
@@ -373,12 +399,18 @@ export default function ProofVaultPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Filter evidence list
+  // Filter evidence list by search, category, and linking status
   const filteredEvidence = evidenceList.filter(item => {
-    const matchesSearch = item.originalName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.notes && item.notes.toLowerCase().includes(searchQuery.toLowerCase()));
+    const q = searchQuery.toLowerCase().trim();
+    const matchesSearch = !q ||
+      item.originalName.toLowerCase().includes(q) ||
+      (item.caseId && item.caseId.toLowerCase().includes(q)) ||
+      (item.notes && item.notes.toLowerCase().includes(q));
     const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
-    return matchesSearch && matchesCategory;
+    const matchesLinking = linkingFilter === 'all' ||
+      (linkingFilter === 'linked' && !!item.caseId) ||
+      (linkingFilter === 'unlinked' && !item.caseId);
+    return matchesSearch && matchesCategory && matchesLinking;
   });
 
   const getCategoryIcon = (cat: string) => {
@@ -388,6 +420,50 @@ export default function ProofVaultPage() {
       case 'video': return <Video size={18} />;
       case 'consent_note': return <CheckCircle size={18} />;
       default: return <FileText size={18} />;
+    }
+  };
+
+  // ─── LINK EVIDENCE HANDLER ───
+  const handleLinkSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!token || !linkModalItem || !linkModalCaseId.trim()) return;
+
+    setLinkModalSubmitting(true);
+    setLinkModalError('');
+    setLinkModalSuccess('');
+
+    try {
+      const res = await linkVaultEvidence(token, linkModalItem.evidenceId, {
+        caseId: linkModalCaseId.trim().toUpperCase(),
+        recoveryCode: linkModalRecoveryKey.trim().toUpperCase(),
+      });
+      setLinkModalSuccess(res.message || 'Evidence successfully linked to case.');
+      await loadEvidence();
+      setTimeout(() => {
+        setLinkModalItem(null);
+        setLinkModalCaseId('');
+        setLinkModalRecoveryKey('');
+        setLinkModalSuccess('');
+      }, 1200);
+    } catch (err: any) {
+      setLinkModalError(err.response?.data?.message || err.message || 'Failed to link evidence. Please verify your Case ID and Recovery Key.');
+    } finally {
+      setLinkModalSubmitting(false);
+    }
+  };
+
+  // ─── UNLINK EVIDENCE HANDLER ───
+  const handleUnlinkEvidence = async (item: EvidenceItem) => {
+    if (!token) return;
+    const confirmed = window.confirm(`Unlink "${item.originalName}" from Case ${item.caseId}? The file will remain safely encrypted in your vault.`);
+    if (!confirmed) return;
+
+    try {
+      await unlinkVaultEvidence(token, item.evidenceId);
+      setActionMessage({ id: item.evidenceId, text: `Unlinked "${item.originalName}" from Case ${item.caseId}.` });
+      await loadEvidence();
+    } catch (err: any) {
+      setActionMessage({ id: item.evidenceId, text: err.response?.data?.message || 'Failed to unlink evidence.', isError: true });
     }
   };
 
@@ -679,7 +755,7 @@ export default function ProofVaultPage() {
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="Search evidence by filename or notes..."
+                      placeholder="Search by Case ID (e.g. SS-...), filename, or notes..."
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
                       style={{ paddingLeft: 36 }}
@@ -690,7 +766,7 @@ export default function ProofVaultPage() {
                     className="form-input"
                     value={categoryFilter}
                     onChange={e => setCategoryFilter(e.target.value)}
-                    style={{ flex: '0 0 180px' }}
+                    style={{ flex: '0 0 170px' }}
                   >
                     <option value="all">All Categories</option>
                     <option value="document">Documents / PDFs</option>
@@ -698,6 +774,17 @@ export default function ProofVaultPage() {
                     <option value="audio">Audio Recordings</option>
                     <option value="video">Videos</option>
                     <option value="consent_note">Consent Notes</option>
+                  </select>
+
+                  <select
+                    className="form-input"
+                    value={linkingFilter}
+                    onChange={e => setLinkingFilter(e.target.value as any)}
+                    style={{ flex: '0 0 170px' }}
+                  >
+                    <option value="all">All Records</option>
+                    <option value="linked">Linked to Case</option>
+                    <option value="unlinked">Unlinked Locker</option>
                   </select>
 
                   <button
@@ -771,6 +858,31 @@ export default function ProofVaultPage() {
                               }}>
                                 {item.category}
                               </span>
+
+                              {/* Case Linking Badge */}
+                              {item.caseId ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setSearchQuery(item.caseId || '')}
+                                  style={{
+                                    fontSize: '0.74rem', padding: '2px 8px',
+                                    borderRadius: 6, background: 'var(--color-soft-pink)', color: 'var(--color-primary)',
+                                    fontWeight: 700, border: '1px solid var(--color-primary)30', cursor: 'pointer',
+                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                  }}
+                                  title="Click to filter by this Case ID"
+                                >
+                                  <Link size={11} /> Case: {item.caseId}
+                                </button>
+                              ) : (
+                                <span style={{
+                                  fontSize: '0.72rem', padding: '2px 8px',
+                                  borderRadius: 6, background: 'rgba(217, 119, 6, 0.12)', color: '#D97706',
+                                  fontWeight: 700,
+                                }}>
+                                  Unlinked Record
+                                </span>
+                              )}
                             </div>
 
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: 4 }}>
@@ -818,6 +930,32 @@ export default function ProofVaultPage() {
                             )}
                             Verify Integrity
                           </button>
+
+                          {item.caseId ? (
+                            <button
+                              onClick={() => handleUnlinkEvidence(item)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '6px 10px' }}
+                              title="Unlink from complaint"
+                            >
+                              <Unlink size={14} />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setLinkModalItem(item);
+                                setLinkModalCaseId('');
+                                setLinkModalRecoveryKey('');
+                                setLinkModalError('');
+                                setLinkModalSuccess('');
+                              }}
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '6px 10px', color: 'var(--color-primary)' }}
+                              title="Link to an existing complaint"
+                            >
+                              <Link size={14} /> Link Case
+                            </button>
+                          )}
 
                           <button
                             onClick={() => handleDeleteEvidence(item)}
@@ -883,6 +1021,42 @@ export default function ProofVaultPage() {
                           {selectedFile ? `${formatBytes(selectedFile.size)} • Ready for in-browser encryption` : 'PDF, JPG, PNG, MP3, WAV, MP4 up to 25MB'}
                         </span>
                       </label>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                      <div>
+                        <label className="form-label" style={{ fontWeight: 600 }}>
+                          Case ID / Report ID (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="e.g. SS-2026-A1B2C3"
+                          value={uploadCaseId}
+                          onChange={e => setUploadCaseId(e.target.value.toUpperCase())}
+                          style={{ width: '100%' }}
+                        />
+                        <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: 4, display: 'block' }}>
+                          Directly associates this encrypted file with your complaint.
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="form-label" style={{ fontWeight: 600 }}>
+                          Case Recovery Key {uploadCaseId.trim() ? '(Required)' : '(Optional)'}
+                        </label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="e.g. REC-XXXX-XXXX"
+                          value={uploadRecoveryKey}
+                          onChange={e => setUploadRecoveryKey(e.target.value.toUpperCase())}
+                          style={{ width: '100%' }}
+                        />
+                        <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: 4, display: 'block' }}>
+                          Authenticates ownership to prevent linking to arbitrary cases.
+                        </span>
+                      </div>
                     </div>
 
                     <div>
@@ -1232,6 +1406,94 @@ export default function ProofVaultPage() {
         </AnimatePresence>
 
       </div>
+      {/* ─── MODAL: LINK EVIDENCE TO CASE ─── */}
+      {linkModalItem && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 110,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div className="card" style={{ width: '100%', maxWidth: 480, padding: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Link size={20} color="var(--color-primary)" />
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Link Evidence to Complaint</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLinkModalItem(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <p style={{ margin: '0 0 14px', fontSize: '0.84rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+              Associate <strong>"{linkModalItem.originalName}"</strong> with your verified complaint. Only authenticated case owners with the matching Recovery Key can link evidence.
+            </p>
+
+            {linkModalError && (
+              <div style={{ padding: 10, background: 'rgba(217, 45, 53, 0.1)', color: '#D92D35', borderRadius: 8, fontSize: '0.82rem', marginBottom: 12 }}>
+                {linkModalError}
+              </div>
+            )}
+            {linkModalSuccess && (
+              <div style={{ padding: 10, background: 'rgba(22, 133, 107, 0.12)', color: '#16856B', borderRadius: 8, fontSize: '0.82rem', marginBottom: 12 }}>
+                {linkModalSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handleLinkSubmit}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: 4 }}>
+                  Case ID / Report ID
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={linkModalCaseId}
+                  onChange={(e) => setLinkModalCaseId(e.target.value.toUpperCase())}
+                  placeholder="e.g. SS-2026-A1B2C3"
+                  className="form-input"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: 4 }}>
+                  Case Recovery Key
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={linkModalRecoveryKey}
+                  onChange={(e) => setLinkModalRecoveryKey(e.target.value.toUpperCase())}
+                  placeholder="Enter the recovery key from your complaint submission"
+                  className="form-input"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setLinkModalItem(null)}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={linkModalSubmitting || !linkModalCaseId.trim() || !linkModalRecoveryKey.trim()}
+                  className="btn btn-primary"
+                >
+                  {linkModalSubmitting ? 'Authenticating & Linking…' : 'Authenticate & Link Evidence'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

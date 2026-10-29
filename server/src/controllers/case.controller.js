@@ -3,6 +3,7 @@ import CaseUpdate from '../models/CaseUpdate.js';
 import AuditLog from '../models/AuditLog.js';
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
+import VaultEvidence from '../models/VaultEvidence.js';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { evaluateSafetyRules, RULE_VERSION } from '../services/safetyPriorityRules.js';
@@ -347,6 +348,37 @@ export const submitCase = async (req, res) => {
 
     const newCase = await Case.create(caseData);
 
+    // If vault evidence IDs were provided during submission, automatically link them
+    if (req.body.vaultEvidenceIds && Array.isArray(req.body.vaultEvidenceIds) && req.body.vaultEvidenceIds.length > 0) {
+      try {
+        const matchingVaultItems = await VaultEvidence.find({
+          evidenceId: { $in: req.body.vaultEvidenceIds },
+          isDeleted: false,
+        });
+
+        if (matchingVaultItems.length > 0) {
+          const itemIds = matchingVaultItems.map(m => m._id);
+          newCase.vaultEvidence = itemIds;
+          await newCase.save();
+
+          await VaultEvidence.updateMany(
+            { _id: { $in: itemIds } },
+            {
+              $set: {
+                caseId: newCase.caseId,
+                case: newCase._id,
+                linkingStatus: 'linked',
+                linkedAt: new Date(),
+                linkedBy: 'complainant',
+              },
+            }
+          );
+        }
+      } catch (linkErr) {
+        console.warn('Auto-linking vault evidence warning:', linkErr.message);
+      }
+    }
+
     await CaseUpdate.create({
       case: newCase._id,
       status: 'submitted',
@@ -504,6 +536,7 @@ export const getAllCases = async (req, res) => {
       .limit(Number(limit))
       .populate('assignedTo', 'name email staffId role department designation')
       .populate('evidence', 'filename originalName mimetype size sha256Hash integrityStatus lastVerifiedAt')
+      .populate('vaultEvidence', 'evidenceId originalName category sizeBytes mimeType sha256Digest linkingStatus integrityStatus createdAt')
       .select('-recoveryCode -internalNotes -reporterEmail -reporterPhone');
 
     // Attach calculated deadline metrics dynamically
@@ -538,6 +571,7 @@ export const getCaseById = async (req, res) => {
     const foundCase = await Case.findOne({ caseId })
       .populate('assignedTo', 'name email role staffId department designation')
       .populate('evidence')
+      .populate('vaultEvidence')
       .populate('auditHistory.performedBy', 'name email role staffId')
       .populate('internalNotesList.author', 'name email role staffId')
       .select('-recoveryCode');

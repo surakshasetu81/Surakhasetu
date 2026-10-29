@@ -14,6 +14,50 @@ const vaultEvidenceSchema = new mongoose.Schema({
     index: true,
     trim: true,
   },
+  caseId: {
+    type: String,
+    index: true,
+    default: null,
+    trim: true,
+  },
+  case: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Case',
+    default: null,
+    index: true,
+  },
+  owner: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  linkingStatus: {
+    type: String,
+    enum: ['linked', 'unlinked', 'verification_required'],
+    default: 'unlinked',
+    index: true,
+  },
+  linkedAt: {
+    type: Date,
+    default: null,
+  },
+  linkedBy: {
+    type: String,
+    default: null,
+  },
+  integrityStatus: {
+    type: String,
+    enum: ['verified', 'unverified', 'compromised'],
+    default: 'verified',
+  },
+  lastIntegrityCheckAt: {
+    type: Date,
+    default: Date.now,
+  },
+  auditMetadata: {
+    type: mongoose.Schema.Types.Mixed,
+    default: () => ({}),
+  },
   storageFileName: {
     type: String,
     required: true,
