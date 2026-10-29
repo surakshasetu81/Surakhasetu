@@ -8,7 +8,6 @@ import {
   ChevronUp,
   BookOpen,
   Building2,
-  FileText,
   ShieldCheck,
   Info,
   Award
@@ -61,16 +60,16 @@ const laws: LawItem[] = [
       'Section 26: Penalties for employer non-compliance, including monetary fines and revocation/cancellation of business license.',
     ],
     primarySource: {
-      name: 'Ministry of Women and Child Development (MWCD Legislations)',
-      url: 'https://www.wcd.gov.in/documents/legislations',
-      type: 'portal',
+      name: 'India Code — POSH Act, 2013 (Official Legislative Source)',
+      url: 'https://www.indiacode.nic.in/handle/123456789/2104',
+      type: 'statute',
       isPrimary: true,
     },
     additionalSources: [
       {
-        name: 'India Code — POSH Act 2013 (Official Statute)',
-        url: 'https://www.indiacode.nic.in/handle/123456789/2104',
-        type: 'statute',
+        name: 'Ministry of Women and Child Development (MWCD Legislations)',
+        url: 'https://www.wcd.gov.in/documents/legislations',
+        type: 'portal',
       },
       {
         name: 'Ministry of MSME — Official POSH Act 2013 Information',
@@ -107,16 +106,16 @@ const laws: LawItem[] = [
       'Mandatory time-bound trial: Special Courts designated to complete trial within 1 year from taking cognizance.',
     ],
     primarySource: {
-      name: 'MWCD Official Legislations Portal',
-      url: 'https://www.wcd.gov.in/documents/legislations',
-      type: 'portal',
+      name: 'India Code — POCSO Act, 2012 (Official Legislative Source)',
+      url: 'https://www.indiacode.nic.in/handle/123456789/2079',
+      type: 'statute',
       isPrimary: true,
     },
     additionalSources: [
       {
-        name: 'India Code — POCSO Act 2012 (Official Statute)',
-        url: 'https://www.indiacode.nic.in/handle/123456789/2079',
-        type: 'statute',
+        name: 'MWCD Official Legislations Portal',
+        url: 'https://www.wcd.gov.in/documents/legislations',
+        type: 'portal',
       },
       {
         name: 'National Commission for Protection of Child Rights (NCPCR)',
@@ -559,7 +558,7 @@ function LawCard({ law, index }: { law: LawItem; index: number }) {
               onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.92')}
               onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
             >
-              <FileText size={15} /> Read Official Act ↗
+              <BookOpen size={15} /> Official Source ↗
             </a>
 
             {/* Additional Verified Government Source Links */}

@@ -288,7 +288,7 @@ function KnowYourRights() {
       desc: 'The Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act protects women from sexual harassment at work. Every employer with 10+ employees must form an Internal Complaints Committee (ICC).',
       points: ['Applies to all workplaces', 'ICC mandatory for 10+ employees', 'Complaint within 3 months of incident', 'Inquiry within 90 days'],
       color: '#C2185B',
-      href: 'https://wcd.nic.in/sites/default/files/Sexual-Harassment-at-Workplace-Act.pdf',
+      href: 'https://www.indiacode.nic.in/handle/123456789/2104',
     },
     {
       id: 'pocso',
@@ -298,7 +298,7 @@ function KnowYourRights() {
       desc: 'The Protection of Children from Sexual Offences Act provides a robust legal framework to protect children under 18 from sexual assault, harassment and pornography. Reporting is mandatory.',
       points: ['Protects children below 18 years', 'Gender-neutral protection', 'Mandatory reporting obligation', 'Special child-friendly courts'],
       color: '#7C3AED',
-      href: 'https://wcd.nic.in/sites/default/files/POCSO-ACT.pdf',
+      href: 'https://www.indiacode.nic.in/handle/123456789/2079',
     },
     {
       id: 'vishaka',
@@ -308,7 +308,7 @@ function KnowYourRights() {
       desc: 'Landmark Supreme Court guidelines that first defined sexual harassment at the workplace in India, placing employer obligations. These guidelines laid the foundation for the POSH Act.',
       points: ['First legal definition of workplace harassment', 'Employer awareness obligations', 'Complaints committee framework', 'Foundation for POSH Act 2013'],
       color: '#0891B2',
-      href: 'https://main.sci.gov.in/',
+      href: 'https://www.sci.gov.in/document/judgments-and-gender/',
     },
   ];
 
@@ -361,9 +361,29 @@ function KnowYourRights() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-sm"
-                style={{ background: `${law.color}18`, color: law.color, border: `1.5px solid ${law.color}40` }}
+                style={{
+                  background: `${law.color}18`,
+                  color: law.color,
+                  border: `1.5px solid ${law.color}40`,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = `${law.color}30`;
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = `${law.color}18`;
+                  e.currentTarget.style.transform = 'none';
+                }}
+                aria-label={`Official Source for ${law.title} (opens in a new tab)`}
               >
-                <BookOpen size={13} /> Official Source
+                <BookOpen size={13} /> Official Source ↗
               </a>
               <p style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: 10 }}>
                 * This is an informational summary. For legal advice, consult a qualified advocate.
