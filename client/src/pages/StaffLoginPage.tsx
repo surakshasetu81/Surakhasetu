@@ -28,7 +28,19 @@ export default function StaffLoginPage() {
         navigate('/dashboard');
       }
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Login failed. Please check your credentials.');
+      let message = '';
+      if (!err?.response) {
+        message = 'Unable to reach backend server. If the server is on Render free-tier, it may take 30–50s to wake up from sleep. Please wait a moment and try again.';
+      } else if (err.response.status === 401) {
+        message = 'Invalid email or password. Please check your credentials.';
+      } else if (err.response.status === 405) {
+        message = 'Authentication endpoint returned 405 Method Not Allowed. The request was intercepted by a static page rewrite rather than reaching the backend.';
+      } else if (err.response.status === 404) {
+        message = 'Authentication endpoint not found (404). Please ensure the backend server is deployed and online.';
+      } else {
+        message = err.response.data?.message || err.friendlyMessage || 'Login failed. Please verify your connection and credentials.';
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -153,7 +165,7 @@ export default function StaffLoginPage() {
               style={{ marginTop: 4 }}
             >
               <LogIn size={16} />
-              {loading ? 'Signing in…' : 'Sign In'}
+              {loading ? 'Signing in (connecting to server)…' : 'Sign In'}
             </button>
           </form>
         </div>

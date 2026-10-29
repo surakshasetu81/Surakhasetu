@@ -678,7 +678,20 @@ export default function ReportPage() {
       setResult(res);
       setStep(5);
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.friendlyMessage || 'Failed to submit report. Please check your connection and try again.');
+      const serverMessage = err?.response?.data?.message || err?.friendlyMessage;
+      let displayMessage = '';
+      if (!err?.response) {
+        displayMessage = 'Unable to connect to the backend server. The server may be starting up. Please check your internet connection and retry.';
+      } else if (err.response.status === 405) {
+        displayMessage = 'API routing error (405 Method Not Allowed). The request was intercepted by static routing instead of reaching the backend API.';
+      } else if (err.response.status === 503) {
+        displayMessage = serverMessage || 'Database service is currently connecting or unavailable. Please try again in a few moments.';
+      } else if (err.response.status === 400) {
+        displayMessage = serverMessage || 'Some required fields were invalid. Please review your complaint details.';
+      } else {
+        displayMessage = serverMessage || 'Failed to submit report. Please check your connection and try again.';
+      }
+      setError(displayMessage);
     } finally {
       setSubmitting(false);
     }

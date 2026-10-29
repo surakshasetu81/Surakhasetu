@@ -169,6 +169,18 @@ export const connectDB = async () => {
   if (mongoose.connection.readyState === 1) {
     return mongoose.connection;
   }
+  // Return existing active connection in serverless or cached environments
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+  if (mongoose.connection.readyState === 2) {
+    await new Promise((resolve) => {
+      mongoose.connection.once('connected', resolve);
+      mongoose.connection.once('error', resolve);
+      setTimeout(resolve, 6000);
+    });
+    if (mongoose.connection.readyState === 1) return mongoose.connection;
+  }
 
   const uri = env.MONGODB_URI;
   const validation = validateMongoUri(uri);

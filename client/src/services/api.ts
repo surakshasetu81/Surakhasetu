@@ -5,6 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 export const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -24,7 +25,9 @@ api.interceptors.response.use(
   response => response,
   error => {
     if (!error.response) {
-      error.friendlyMessage = 'Cannot connect to server. Please verify the backend service is running on port 5000.';
+      error.friendlyMessage = 'Unable to reach backend server. The service may be starting up or offline. Please check your connection and retry.';
+    } else if (error.response.status === 405) {
+      error.friendlyMessage = 'API endpoint returned 405 Method Not Allowed. The route was intercepted by static page routing instead of reaching the backend API.';
     } else {
       const serverMsg = typeof error.response.data === 'object' && error.response.data?.message;
       if (serverMsg) {

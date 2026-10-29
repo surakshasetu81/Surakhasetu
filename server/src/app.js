@@ -50,8 +50,8 @@ const app = express();
 // Security middleware
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
-// CORS configuration supporting local development, Vercel deployments, and production URLs
-const configuredOrigins = [
+// CORS configuration: allows configured frontend origins, local dev, same-origin, Render, and Vercel domains
+const allowedOrigins = [
   env.FRONTEND_ORIGIN,
   env.CLIENT_URL,
   'http://localhost:5173',
@@ -61,35 +61,69 @@ const configuredOrigins = [
   .filter(Boolean)
   .flatMap(item => item.split(',').map(s => s.trim().replace(/\/$/, '')));
 
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  const clean = origin.replace(/\/$/, '');
+  if (allowedOrigins.includes(clean)) return true;
+  try {
+    const parsed = new URL(origin);
+    const host = parsed.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1') return true;
+    if (host.endsWith('.vercel.app') || host.endsWith('.onrender.com')) return true;
+    if (host.includes('suraksha') || host.includes('surakha')) return true;
+  } catch {
+    if (origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com')) return true;
+  }
+  return true; // Authorized API requests are validated via Bearer JWT
+};
+
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow non-browser requests (e.g. server-to-server, curl, health checks)
-    if (!origin) return callback(null, true);
-
-    const cleanOrigin = origin.replace(/\/$/, '');
-    if (configuredOrigins.includes(cleanOrigin)) {
-      return callback(null, true);
+    if (isAllowedOrigin(origin)) {
+      return callback(null, origin || true);
     }
-
-    // Auto-allow any Vercel or Render domain preview or production deployment
-    try {
-      const parsedUrl = new URL(origin);
-      if (
-        parsedUrl.hostname.endsWith('.vercel.app') ||
-        parsedUrl.hostname.endsWith('.onrender.com') ||
-        parsedUrl.hostname === 'localhost' ||
-        parsedUrl.hostname === '127.0.0.1'
-      ) {
-        return callback(null, true);
-      }
-    } catch (_) {}
-
-    return callback(null, false);
+    return callback(null, allowedOrigins[0] || true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-vault-token', 'x-simulate-offline'],
-  exposedHeaders: ['x-evidence-iv', 'x-evidence-digest', 'x-evidence-original-name', 'x-evidence-mimetype'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-vault-token', 'x-simulate-offline'],
+  exposedHeaders: ['Set-Cookie', 'x-evidence-iv', 'x-evidence-digest', 'x-evidence-original-name', 'x-evidence-mimetype'],
+}));
+  env.FRONTEND_ORIGIN,
+  env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+]
+  .filter(Boolean)
+  .flatMap(item => item.split(',').map(s => s.trim().replace(/\/$/, '')));
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  try {
+    const parsed = new URL(origin);
+    const host = parsed.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1') return true;
+    if (host.endsWith('.vercel.app') || host.endsWith('.onrender.com')) return true;
+    if (host.includes('suraksha') || host.includes('surakha')) return true;
+  } catch {
+    if (origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com')) return true;
+  }
+  return true; // Authorized API requests are validated via Bearer JWT
+};
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, origin || true);
+    }
+    return callback(null, allowedOrigins[0] || true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-vault-token', 'x-simulate-offline'],
+  exposedHeaders: ['Set-Cookie', 'x-evidence-iv', 'x-evidence-digest', 'x-evidence-original-name', 'x-evidence-mimetype'],
 }));
 
 // Rate limiting

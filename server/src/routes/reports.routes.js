@@ -16,8 +16,23 @@ const router = express.Router();
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'video/mp4', 'audio/mpeg', 'audio/wav'];
 const MAX_SIZE = parseInt(process.env.MAX_FILE_SIZE, 10) || 10 * 1024 * 1024;
 
+import fs from 'fs';
+import os from 'os';
+
+const uploadDir = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'evidence')
+  : path.join(__dirname, '../../uploads/evidence');
+
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (dirErr) {
+  console.warn('Reports evidence dir creation note:', dirErr.message);
+}
+
 const storage = multer.diskStorage({
-  destination: path.join(__dirname, '../../uploads/evidence'),
+  destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     cb(null, `${unique}${path.extname(file.originalname)}`);

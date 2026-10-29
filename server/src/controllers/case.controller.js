@@ -316,6 +316,15 @@ export const submitCase = async (req, res) => {
 
     const requestId = req.headers?.['x-request-id'] || `req-${crypto.randomBytes(4).toString('hex')}`;
 
+    // In serverless / on-demand environments, ensure database connection is established
+    if (!isDatabaseConnected()) {
+      try {
+        await connectDB();
+      } catch (dbConnectErr) {
+        console.warn('DB connect attempt on submitCase note:', dbConnectErr.message);
+      }
+    }
+
     if (!isDatabaseConnected()) {
       console.warn(JSON.stringify({
         level: 'WARN',

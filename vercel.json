@@ -1,41 +1,16 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "services": {
-    "client": {
-      "root": "client",
-      "framework": "vite"
-    },
-    "server": {
-      "root": "server",
-      "framework": "express",
-      "entrypoint": "src/app.js",
-      "bindings": [
-        {
-          "type": "service",
-          "service": "ml-service",
-          "format": "url",
-          "env": "ML_SERVICE_URL"
-        }
-      ]
-    },
-    "ml-service": {
-      "root": "ml-service",
-      "framework": "fastapi",
-      "entrypoint": "app:app"
-    }
-  },
+  "version": 2,
+  "buildCommand": "cd client && npm install && npm run build",
+  "outputDirectory": "client/dist",
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": {
-        "service": "server"
-      }
+      "destination": "/api/index.js"
     },
     {
       "source": "/(.*)",
-      "destination": {
-        "service": "client"
-      }
+      "destination": "/index.html"
     }
   ]
 }
