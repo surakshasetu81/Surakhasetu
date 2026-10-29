@@ -48,7 +48,8 @@ const upload = multer({
   },
 });
 
-// POST /api/reports/submit - Submit report endpoint alias
+// POST /api/reports and POST /api/reports/submit - Submit report endpoint
+router.post('/', submitCase);
 router.post('/submit', submitCase);
 
 // POST /api/reports/upload-evidence - Upload evidence linked to caseId
