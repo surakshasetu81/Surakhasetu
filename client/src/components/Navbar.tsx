@@ -13,7 +13,6 @@ const navItems = [
   { to: '/legal', label: 'Legal Framework' },
   { to: '/respondent', label: 'Respondent Portal' },
   { to: '/counselling-support', label: 'Counselling & Support' },
-  { to: '/safety', label: 'Safety Options' },
 ];
 
 const QUICK_EXIT_URL = 'https://www.google.com';
@@ -38,9 +37,6 @@ export default function Navbar() {
     }
     if (to === '/legal') {
       return currentPath === '/legal' || currentPath === '/legal-framework';
-    }
-    if (to === '/safety') {
-      return currentPath === '/safety' || currentPath === '/safety-options';
     }
     return currentPath === to || currentPath.startsWith(to + '/');
   };

@@ -7,7 +7,6 @@ import HomePage from './pages/HomePage';
 import ReportPage from './pages/ReportPage';
 import TrackPage from './pages/TrackPage';
 import LegalPage from './pages/LegalPage';
-import SafetyPage from './pages/SafetyPage';
 import ProofVaultPage from './pages/ProofVaultPage';
 import RespondentPortalPage from './pages/RespondentPortalPage';
 import StaffLoginPage from './pages/StaffLoginPage';
@@ -45,10 +44,7 @@ export default function App() {
             <Route path="/legal" element={<LegalPage />} />
             <Route path="/legal-framework" element={<LegalPage />} />
             
-            {/* Safety & Support */}
-            <Route path="/safety" element={<SafetyPage />} />
-            <Route path="/safety-options" element={<SafetyPage />} />
-            <Route path="/support" element={<SafetyPage />} />
+            {/* Counselling & Support */}
             <Route path="/counselling-support" element={<CounsellingSupport />} />
             <Route path="/counselling" element={<CounsellingSupport />} />
             

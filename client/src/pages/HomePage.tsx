@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Shield, Search, Lock, FileText, Scale, HeadphonesIcon,
-  MessageCircle, Phone, CheckCircle, Eye, Clock, BookOpen,
+  Phone, CheckCircle, Eye, Clock, BookOpen,
   Users, Heart, HeartHandshake, ArrowRight
 } from 'lucide-react';
 import AwarenessTicker from '../components/AwarenessTicker';
@@ -227,18 +227,18 @@ function KeyFeatures() {
       cta: 'Learn More',
     },
     {
-      icon: Heart,
-      title: 'Safety Support Resources',
-      desc: 'Access counselling, legal aid and support organizations. Verified helpline numbers included.',
-      to: '/safety',
+      icon: HeartHandshake,
+      title: 'Counselling & Support Services',
+      desc: 'Access verified psychological support, national 24/7 helplines, and qualified mental health counsellors.',
+      to: '/counselling-support',
       cta: 'Get Support',
     },
     {
-      icon: MessageCircle,
-      title: 'AI-Assisted Guidance',
-      desc: 'Get answers to common questions about your rights and options through our guidance assistant.',
-      to: '/safety#assistant',
-      cta: 'Ask Assistant',
+      icon: Users,
+      title: 'Respondent Portal',
+      desc: 'Secure portal for respondents to review official notices, submit formal replies, and view hearing schedules.',
+      to: '/respondent',
+      cta: 'Access Portal',
     },
   ];
 

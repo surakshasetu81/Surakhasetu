@@ -8,7 +8,7 @@ const footerLinks = {
     { label: 'Counselling Support', to: '/counselling-support' },
     { label: 'Proof Vault', to: '/proof-vault' },
     { label: 'Legal Framework', to: '/legal' },
-    { label: 'Safety Options', to: '/safety' },
+    { label: 'Respondent Portal', to: '/respondent' },
   ],
   legal: [
     { label: 'Privacy Policy', to: '/privacy' },
