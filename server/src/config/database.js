@@ -166,6 +166,10 @@ mongoose.connection.on('error', (err) => {
 });
 
 export const connectDB = async () => {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+
   const uri = env.MONGODB_URI;
   const validation = validateMongoUri(uri);
   lastConnectionAttemptAt = new Date().toISOString();
@@ -181,9 +185,10 @@ export const connectDB = async () => {
     const maskedUri = sanitizeMongoUri(uri);
     console.log(`📡 Connecting to MongoDB cluster at ${maskedUri}...`);
 
+    const isLocalhost = uri.includes('localhost') || uri.includes('127.0.0.1');
     const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 8000,
+      serverSelectionTimeoutMS: isLocalhost ? 1500 : 5000,
+      connectTimeoutMS: isLocalhost ? 2000 : 8000,
       maxPoolSize: 10,
     });
 
@@ -198,64 +203,38 @@ export const connectDB = async () => {
 
     if (rawMsg.includes('bad auth') || rawMsg.includes('authentication failed')) {
       lastDiagnosticCategory = 'AUTHENTICATION_FAILURE';
-      lastConnectionError = 'MongoDB Atlas rejected the database user credentials (bad auth).';
-    } else if (rawMsg.includes('ssl3_read_bytes') || rawMsg.includes('alert number 80') || rawMsg.includes('whitelist') || rawMsg.includes('Could not connect to any servers')) {
-      lastDiagnosticCategory = 'ATLAS_NETWORK_OR_TLS_RESTRICTION';
-      lastConnectionError = 'Atlas network restriction or cluster offline.';
-    } else if (rawMsg.includes('ENOTFOUND') || rawMsg.includes('querySrv')) {
-      lastDiagnosticCategory = 'DNS_RESOLUTION_FAILED';
-      lastConnectionError = 'Could not resolve MongoDB cluster hostname via DNS.';
+      console.error(`❌ MongoDB Authentication Failed: Invalid credentials for database user.`);
+    } else if (rawMsg.includes('ENOTFOUND') || rawMsg.includes('querySrv ETIMEOUT')) {
+      lastDiagnosticCategory = 'NETWORK_OR_DNS_UNREACHABLE';
+      console.error(`❌ MongoDB Cluster Host Unreachable: Verify DNS and internet access.`);
+    } else if (rawMsg.includes('IP') || rawMsg.includes('whitelist') || rawMsg.includes('not allowed')) {
+      lastDiagnosticCategory = 'IP_ACCESS_BLOCKED';
+      console.error(`❌ MongoDB Atlas IP Access List: Your current IP is not whitelisted in Atlas Network Access.`);
     } else {
-      lastDiagnosticCategory = 'DATABASE_CONNECTION_ERROR';
-      lastConnectionError = safeError;
+      lastDiagnosticCategory = 'CONNECTION_TIMEOUT';
+      console.error(`❌ MongoDB Connection Failed: ${safeError}`);
     }
 
-    console.warn(`⚠️  Remote MongoDB connection attempt failed: ${safeError}`);
-    if (env.NODE_ENV === 'production') {
-      console.warn(`⚠️  Diagnostic [${lastDiagnosticCategory}]: ${lastConnectionError}`);
-      console.log('🔄 Scheduling automatic background reconnection retry every 5s...');
-      if (!reconnectInterval) {
-        reconnectInterval = setInterval(async () => {
-          if (!isDatabaseConnected()) {
-            try {
-              const retryConn = await mongoose.connect(uri, {
-                serverSelectionTimeoutMS: 5000,
-                connectTimeoutMS: 8000,
-                maxPoolSize: 10,
-              });
-              if (isDatabaseConnected()) {
-                lastConnectionError = null;
-                lastDiagnosticCategory = null;
-                console.log(`✅ Automatic reconnection to MongoDB Atlas succeeded! [Host: ${retryConn.connection.host}]`);
-                clearInterval(reconnectInterval);
-                reconnectInterval = null;
-                await seedDefaultUsers();
-              }
-            } catch (_) {
-              // keep waiting for network or credentials to be updated
-            }
-          } else {
-            clearInterval(reconnectInterval);
-            reconnectInterval = null;
-          }
-        }, 5000);
-      }
-      return null;
+    lastConnectionError = safeError;
+
+    // Graceful fallback to local in-memory DB in development
+    if (env.NODE_ENV !== 'production') {
+      console.log('🔄 Automatically falling back to local embedded MongoDB database for full functionality...');
+      return await startMemoryDB();
     }
 
-    console.log('🔄 Automatically falling back to local embedded MongoDB database for full functionality...');
-    return await startMemoryDB();
+    return null;
   }
 };
 
 export const closeDB = async () => {
+  if (reconnectInterval) clearInterval(reconnectInterval);
   if (mongoose.connection.readyState !== 0) {
     await mongoose.connection.close();
-    console.log('MongoDB connection closed.');
   }
   if (memoryServerInstance) {
     await memoryServerInstance.stop();
-    memoryServerInstance = null;
-    console.log('Local embedded MongoDB stopped.');
   }
 };
+
+export default connectDB;

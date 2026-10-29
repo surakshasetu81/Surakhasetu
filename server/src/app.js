@@ -47,9 +47,6 @@ for (const dir of uploadDirs) {
 
 const app = express();
 
-// Connect to MongoDB
-connectDB();
-
 // Security middleware
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
@@ -106,7 +103,7 @@ const generalLimiter = rateLimit({
 
 const strictLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 30,
+  max: 60,
   message: { success: false, message: 'Too many requests from this IP. Please try again later.' },
 });
 
@@ -203,8 +200,16 @@ app.use((req, res) => {
 let server;
 if (!process.env.VERCEL) {
   const PORT = env.PORT || 5000;
-  server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Suraksha Setu server running on port ${PORT}`);
+  // Initialize database before listening
+  connectDB().then(() => {
+    server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Suraksha Setu server running on port ${PORT}`);
+    });
+  }).catch(err => {
+    console.error('Database initialization error:', err);
+    server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Suraksha Setu server running on port ${PORT} (database degraded)`);
+    });
   });
 
   // Graceful shutdown
@@ -221,6 +226,9 @@ if (!process.env.VERCEL) {
 
   process.on('SIGTERM', () => handleShutdown('SIGTERM'));
   process.on('SIGINT', () => handleShutdown('SIGINT'));
+} else {
+  // On Vercel serverless environment
+  connectDB().catch(console.error);
 }
 
 export default app;

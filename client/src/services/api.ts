@@ -24,9 +24,22 @@ api.interceptors.response.use(
   response => response,
   error => {
     if (!error.response) {
-      error.friendlyMessage = 'Server is currently connecting. Backend is processing or offline.';
+      error.friendlyMessage = 'Cannot connect to server. Please verify the backend service is running on port 5000.';
     } else {
-      error.friendlyMessage = error.response.data?.message || 'An error occurred while communicating with the server.';
+      const serverMsg = typeof error.response.data === 'object' && error.response.data?.message;
+      if (serverMsg) {
+        error.friendlyMessage = serverMsg;
+      } else if (error.response.status === 503) {
+        error.friendlyMessage = 'Database service is currently unavailable. Please verify MongoDB connection and try again.';
+      } else if (error.response.status === 504 || error.response.status === 502) {
+        error.friendlyMessage = 'Gateway timeout: The backend server took too long to respond. Please try again.';
+      } else if (error.response.status === 404) {
+        error.friendlyMessage = 'Requested service endpoint was not found on the server (404).';
+      } else {
+        error.friendlyMessage = typeof error.response.data === 'string' && error.response.data.length < 120
+          ? error.response.data
+          : 'An error occurred while communicating with the server.';
+      }
     }
     return Promise.reject(error);
   }

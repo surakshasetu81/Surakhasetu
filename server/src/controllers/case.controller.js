@@ -91,7 +91,7 @@ export const devCaseStore = {
 // POST /api/cases - Submit new complaint (public)
 export const submitCase = async (req, res) => {
   try {
-    if (req.headers['x-simulate-offline'] === 'true') {
+    if (req.headers?.['x-simulate-offline'] === 'true') {
       return res.status(503).json({
         success: false,
         message: 'Database service is currently offline. Please configure a valid MONGODB_URI in server/.env and ensure MongoDB is running.',
@@ -314,7 +314,7 @@ export const submitCase = async (req, res) => {
     const optionalId = (employeeOrCollegeId || organizationId || '').toString().trim();
     if (optionalId) caseData.employeeOrCollegeId = optionalId;
 
-    const requestId = req.headers['x-request-id'] || `req-${crypto.randomBytes(4).toString('hex')}`;
+    const requestId = req.headers?.['x-request-id'] || `req-${crypto.randomBytes(4).toString('hex')}`;
 
     if (!isDatabaseConnected()) {
       console.warn(JSON.stringify({
@@ -365,7 +365,7 @@ export const submitCase = async (req, res) => {
       submittedAt: newCase.createdAt || new Date(),
     });
   } catch (err) {
-    const requestId = req.headers['x-request-id'] || 'req-err';
+    const requestId = req.headers?.['x-request-id'] || 'req-err';
     const isValidationError = err.name === 'ValidationError';
     console.error(JSON.stringify({
       level: 'ERROR',
@@ -395,7 +395,7 @@ export const submitCase = async (req, res) => {
 // POST /api/cases/track and /api/cases/track-lookup - Track case with Report ID/Case ID + Recovery Key/Code (public)
 export const trackCase = async (req, res) => {
   try {
-    if (req.headers['x-simulate-offline'] === 'true' || !isDatabaseConnected()) {
+    if (req.headers?.['x-simulate-offline'] === 'true' || !isDatabaseConnected()) {
       return res.status(503).json({
         success: false,
         message: 'Case tracking is temporarily unavailable. Database connection is not established.',
