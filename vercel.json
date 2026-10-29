@@ -12,5 +12,16 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Config-Source",
+          "value": "root-vercel-json"
+        }
+      ]
+    }
   ]
 }

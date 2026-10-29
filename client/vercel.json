@@ -28,6 +28,15 @@
           "value": "strict-origin-when-cross-origin"
         }
       ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Config-Source",
+          "value": "client-vercel-json"
+        }
+      ]
     }
   ]
 }
