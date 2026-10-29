@@ -5,7 +5,8 @@ import {
   Search, Clock, CheckCircle, AlertCircle, Info, Shield,
   ArrowLeft, RefreshCw, Lock, PhoneCall, Scale, Eye, EyeOff
 } from 'lucide-react';
-import { trackCase as apiTrackCase } from '../services/api';
+import { trackCase as apiTrackCase, submitComplainantClarification } from '../services/api';
+import { Send } from 'lucide-react';
 
 // ─── STATUS CONFIGURATION ───────────────────────────────────────────────────
 interface StatusMeta {
@@ -24,12 +25,33 @@ const STATUS_CONFIG: Record<string, StatusMeta> = {
     icon: (s = 14) => <Clock size={s} />,
     summary: 'Your report has been securely registered in the intake repository and is queued for verification.',
   },
-  acknowledged: {
-    label: 'Acknowledged',
+  awaiting_review: {
+    label: 'Awaiting Review',
     color: '#2563EB',
     badgeBg: 'rgba(37, 99, 235, 0.12)',
+    icon: (s = 14) => <Clock size={s} />,
+    summary: 'Filing confirmed and currently queued for preliminary review by the committee.',
+  },
+  assigned: {
+    label: 'Assigned for Inquiry',
+    color: '#8B5CF6',
+    badgeBg: 'rgba(139, 92, 246, 0.12)',
     icon: (s = 14) => <Info size={s} />,
-    summary: 'The Internal Complaints Committee (ICC) has formally acknowledged receipt of your filing.',
+    summary: 'An authorized Internal Committee case officer has been assigned to coordinate your inquiry.',
+  },
+  under_preliminary_assessment: {
+    label: 'Preliminary Assessment',
+    color: '#D97706',
+    badgeBg: 'rgba(217, 119, 6, 0.12)',
+    icon: (s = 14) => <Search size={s} />,
+    summary: 'Initial examination of facts and procedural eligibility is currently in progress.',
+  },
+  inquiry_in_progress: {
+    label: 'Inquiry in Progress',
+    color: '#B7791F',
+    badgeBg: 'rgba(183, 121, 31, 0.12)',
+    icon: (s = 14) => <Search size={s} />,
+    summary: 'Formal committee inquiry proceedings under Section 11 of the POSH Act 2013 are actively underway.',
   },
   under_review: {
     label: 'Under Review',
@@ -43,7 +65,14 @@ const STATUS_CONFIG: Record<string, StatusMeta> = {
     color: '#7C3AED',
     badgeBg: 'rgba(124, 58, 237, 0.12)',
     icon: (s = 14) => <AlertCircle size={s} />,
-    summary: 'The committee has requested additional clarification or supporting documentation to proceed.',
+    summary: 'The committee has requested additional clarification or supporting statement to proceed.',
+  },
+  awaiting_authorized_decision: {
+    label: 'Awaiting Decision',
+    color: '#C2185B',
+    badgeBg: 'rgba(194, 24, 91, 0.12)',
+    icon: (s = 14) => <CheckCircle size={s} />,
+    summary: 'Inquiry hearings concluded. The committee is finalizing formal findings and recommendations.',
   },
   decision_recorded: {
     label: 'Decision Recorded',
@@ -52,12 +81,33 @@ const STATUS_CONFIG: Record<string, StatusMeta> = {
     icon: (s = 14) => <CheckCircle size={s} />,
     summary: 'The committee has concluded inquiry proceedings and formally recorded its recommendations.',
   },
+  resolved: {
+    label: 'Resolved',
+    color: '#16856B',
+    badgeBg: 'rgba(22, 133, 107, 0.12)',
+    icon: (s = 14) => <CheckCircle size={s} />,
+    summary: 'Inquiry concluded with formal findings and corrective actions resolved.',
+  },
   closed: {
     label: 'Case Closed',
     color: '#16856B',
     badgeBg: 'rgba(22, 133, 107, 0.12)',
     icon: (s = 14) => <CheckCircle size={s} />,
     summary: 'All statutory requirements and administrative steps have been completed.',
+  },
+  reopened: {
+    label: 'Reopened for Inquiry',
+    color: '#D92D35',
+    badgeBg: 'rgba(217, 45, 53, 0.12)',
+    icon: (s = 14) => <AlertCircle size={s} />,
+    summary: 'Case has been reopened for authorized supplementary proceedings based on new evidence.',
+  },
+  acknowledged: {
+    label: 'Acknowledged',
+    color: '#2563EB',
+    badgeBg: 'rgba(37, 99, 235, 0.12)',
+    icon: (s = 14) => <Info size={s} />,
+    summary: 'The Internal Complaints Committee (ICC) has formally acknowledged receipt of your filing.',
   },
 };
 
@@ -90,6 +140,18 @@ interface CaseData {
   isAnonymous: boolean;
   supportRequired?: string[];
   isUrgent?: boolean;
+  targetResolutionDate?: string;
+  statutoryDueDate?: string;
+  isOverdue?: boolean;
+  daysRemaining?: number;
+  clarificationRequests?: Array<{
+    requestId: string;
+    question: string;
+    requestedAt: string;
+    status: string;
+    response?: string;
+    respondedAt?: string;
+  }>;
   legalAdvisory?: {
     assessmentType?: string;
     incidentCategory?: { label?: string; explanation?: string };
@@ -129,6 +191,12 @@ export default function TrackPage() {
   const [caseData, setCaseData] = useState<CaseData | null>(null);
   const [timeline, setTimeline] = useState<TimelineUpdate[]>([]);
 
+  // Complainant clarification response state
+  const [clarificationText, setClarificationText] = useState('');
+  const [clarificationSubmitting, setClarificationSubmitting] = useState(false);
+  const [clarificationSuccess, setClarificationSuccess] = useState('');
+  const [clarificationError, setClarificationError] = useState('');
+
   // Handle URL query pre-fills (e.g. ?reportId=... or ?caseId=...)
   useEffect(() => {
     const qReportId = searchParams.get('reportId') || searchParams.get('caseId');
@@ -161,6 +229,32 @@ export default function TrackPage() {
 
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
+  };
+
+  // ─── CLARIFICATION SUBMIT HANDLER ──────────────────────────────────────
+  const handleClarificationSubmit = async (requestId?: string) => {
+    if (!clarificationText.trim() || !caseData) return;
+    setClarificationSubmitting(true);
+    setClarificationError('');
+    setClarificationSuccess('');
+
+    try {
+      const cleanKey = recoveryKey.trim().toUpperCase();
+      await submitComplainantClarification({
+        caseId: caseData.caseId,
+        recoveryCode: cleanKey,
+        requestId,
+        responseText: clarificationText.trim(),
+      });
+      setClarificationSuccess('Your response and additional statements were submitted securely to the Internal Committee.');
+      setClarificationText('');
+      // Refresh case record
+      handleRefreshStatus();
+    } catch (err: any) {
+      setClarificationError(err.response?.data?.message || 'Failed to submit additional information. Please verify your recovery key.');
+    } finally {
+      setClarificationSubmitting(false);
+    }
   };
 
   // ─── TRACK SUBMIT HANDLER ─────────────────────────────────────────────────
@@ -636,6 +730,131 @@ export default function TrackPage() {
                 </div>
               )}
             </div>
+
+            {/* Statutory Deadlines & Progress Metrics */}
+            <div className="card" style={{ marginBottom: 24, padding: '20px 24px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                  <h4 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 700, color: 'var(--color-text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Scale size={18} color="var(--color-primary)" />
+                    POSH Act Statutory Inquiry Window & Target Timeline
+                  </h4>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+                    Statutory inquiry mandate under Section 11(4) of the Sexual Harassment of Women at Workplace Act, 2013.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Target Timeline</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: caseData.isOverdue ? '#D92D35' : 'var(--color-primary)' }}>
+                      {caseData.daysRemaining !== undefined ? (caseData.daysRemaining > 0 ? `${caseData.daysRemaining} days remaining` : 'Exceeded target') : 'Active Target'}
+                    </div>
+                  </div>
+                  <div style={{
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    background: caseData.isOverdue ? 'rgba(217, 45, 53, 0.12)' : 'rgba(22, 133, 107, 0.12)',
+                    color: caseData.isOverdue ? '#D92D35' : '#16856B',
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                  }}>
+                    {caseData.isOverdue ? 'Overdue - Under Escalation Review' : 'Within Target Window'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-border)' }}>
+                <div>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>Internal Target Resolution Date:</span>
+                  <p style={{ margin: '2px 0 0', fontWeight: 700, fontSize: '0.88rem' }}>
+                    {caseData.targetResolutionDate ? new Date(caseData.targetResolutionDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }) : '60 days from submission'}
+                  </p>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>Statutory 90-Day Maximum Due Date:</span>
+                  <p style={{ margin: '2px 0 0', fontWeight: 700, fontSize: '0.88rem' }}>
+                    {caseData.statutoryDueDate ? new Date(caseData.statutoryDueDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }) : '90 days from intake'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Complainant Clarification Request & Submission Form */}
+            {(caseData.status === 'additional_info_required' || (caseData.clarificationRequests && caseData.clarificationRequests.length > 0)) && (
+              <div className="card" style={{ marginBottom: 24, padding: 24, border: '1.5px solid var(--color-primary)', background: 'var(--color-soft-pink)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                  <AlertCircle size={22} color="var(--color-primary)" />
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--color-primary)' }}>
+                      Information Requested by Committee
+                    </h3>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.84rem', color: 'var(--color-text-secondary)' }}>
+                      The Internal Complaints Committee has requested additional details to facilitate your case inquiry.
+                    </p>
+                  </div>
+                </div>
+
+                {caseData.clarificationRequests && caseData.clarificationRequests.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+                    {caseData.clarificationRequests.map((req, idx) => (
+                      <div key={idx} style={{ padding: 14, background: 'var(--color-card)', borderRadius: 10, border: '1px solid var(--color-border)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--color-primary)' }}>Request #{idx + 1}</span>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>{new Date(req.requestedAt).toLocaleDateString('en-IN')}</span>
+                        </div>
+                        <p style={{ margin: '0 0 8px', fontSize: '0.9rem', fontWeight: 600 }}>{req.question}</p>
+                        {req.response ? (
+                          <div style={{ padding: 10, background: 'var(--color-bg-secondary)', borderRadius: 8, fontSize: '0.85rem' }}>
+                            <span style={{ fontWeight: 700, color: 'var(--color-success)' }}>Your Submitted Response: </span>
+                            {req.response}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '0.76rem', color: '#D97706', fontWeight: 700 }}>Awaiting your response below</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {clarificationSuccess && (
+                  <div style={{ padding: 12, background: 'rgba(22, 133, 107, 0.12)', border: '1px solid var(--color-success)', color: 'var(--color-success)', borderRadius: 8, fontSize: '0.86rem', fontWeight: 600, marginBottom: 12 }}>
+                    {clarificationSuccess}
+                  </div>
+                )}
+                {clarificationError && (
+                  <div style={{ padding: 12, background: 'rgba(217, 45, 53, 0.1)', border: '1px solid var(--color-emergency)', color: 'var(--color-emergency)', borderRadius: 8, fontSize: '0.86rem', fontWeight: 600, marginBottom: 12 }}>
+                    {clarificationError}
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="clarification-input" style={{ display: 'block', fontSize: '0.86rem', fontWeight: 700, marginBottom: 6 }}>
+                    Provide Statement or Requested Information:
+                  </label>
+                  <textarea
+                    id="clarification-input"
+                    rows={4}
+                    value={clarificationText}
+                    onChange={(e) => setClarificationText(e.target.value)}
+                    placeholder="Enter the clarifications, dates, witnesses, or context requested by the committee..."
+                    className="form-input"
+                    style={{ width: '100%', marginBottom: 12 }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleClarificationSubmit(caseData.clarificationRequests?.[caseData.clarificationRequests.length - 1]?.requestId)}
+                      disabled={clarificationSubmitting || !clarificationText.trim()}
+                      className="btn btn-primary"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <Send size={15} />
+                      {clarificationSubmitting ? 'Submitting...' : 'Submit Requested Information'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 2. Case Progress Timeline */}
             <div className="card" style={{ marginBottom: 24, padding: 28 }} id="case-timeline-section">

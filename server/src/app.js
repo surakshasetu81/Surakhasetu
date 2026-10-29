@@ -28,6 +28,8 @@ import legalAssessmentRoutes from './routes/legalAssessment.routes.js';
 import vaultRoutes from './routes/vault.routes.js';
 import verificationRoutes from './routes/verification.routes.js';
 import assistantRoutes from './routes/assistant.routes.js';
+import adminRoutes from './routes/admin.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -136,6 +138,8 @@ const routeList = [
   ['/vault', vaultRoutes],
   ['/verification', verificationRoutes],
   ['/assistant', assistantRoutes],
+  ['/admin', adminRoutes],
+  ['/notifications', notificationRoutes],
 ];
 
 for (const [prefix, router] of routeList) {

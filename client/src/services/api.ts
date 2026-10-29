@@ -343,6 +343,131 @@ export const sendAssistantMessage = async (
   return res.data;
 };
 
+
+// ─── ENTERPRISE ADMIN & CASE MANAGEMENT APIS ────────────────────────────────
+export const getAdminDashboardStats = async (params: Record<string, string> = {}) => {
+  const res = await api.get('/api/admin/dashboard-stats', { params });
+  return res.data;
+};
+
+export const getAdminStaff = async () => {
+  const res = await api.get('/api/admin/staff');
+  return res.data;
+};
+
+export const createStaffAccount = async (payload: {
+  name: string;
+  email: string;
+  department?: string;
+  designation?: string;
+  role?: string;
+  initialPassword?: string;
+}) => {
+  const res = await api.post('/api/admin/staff', payload);
+  return res.data;
+};
+
+export const updateStaffRole = async (id: string, payload: { role?: string; department?: string; designation?: string }) => {
+  const res = await api.patch(`/api/admin/staff/${id}/role`, payload);
+  return res.data;
+};
+
+export const toggleStaffStatus = async (id: string, payload: { isActive: boolean; reason?: string }) => {
+  const res = await api.patch(`/api/admin/staff/${id}/status`, payload);
+  return res.data;
+};
+
+export const resetStaffPassword = async (id: string) => {
+  const res = await api.post(`/api/admin/staff/${id}/reset-password`);
+  return res.data;
+};
+
+export const assignCase = async (caseId: string, payload: { staffId: string; reason?: string }) => {
+  const res = await api.patch(`/api/cases/${caseId}/assign`, payload);
+  return res.data;
+};
+
+export const addInternalNote = async (caseId: string, content: string) => {
+  const res = await api.post(`/api/cases/${caseId}/internal-notes`, { content });
+  return res.data;
+};
+
+export const scheduleInquiryMeeting = async (caseId: string, payload: {
+  title: string;
+  scheduledAt: string;
+  locationOrLink?: string;
+  attendees?: string[];
+  notes?: string;
+  notifyComplainant?: boolean;
+}) => {
+  const res = await api.post(`/api/cases/${caseId}/inquiry-meetings`, payload);
+  return res.data;
+};
+
+export const recordInquiryFindings = async (caseId: string, payload: {
+  findingsSummary: string;
+  recommendations?: string;
+  formalOrderNumber?: string;
+  finalOutcomeStatus?: string;
+}) => {
+  const res = await api.post(`/api/cases/${caseId}/inquiry-findings`, payload);
+  return res.data;
+};
+
+export const closeOrReopenCase = async (caseId: string, payload: { action: 'CLOSE' | 'REOPEN'; reason: string }) => {
+  const res = await api.patch(`/api/cases/${caseId}/close-or-reopen`, payload);
+  return res.data;
+};
+
+export const submitComplainantClarification = async (payload: {
+  caseId: string;
+  recoveryCode: string;
+  requestId?: string;
+  responseText: string;
+}) => {
+  const res = await api.post('/api/cases/track/provide-info', payload);
+  return res.data;
+};
+
+export const getNotifications = async () => {
+  const res = await api.get('/api/notifications');
+  return res.data;
+};
+
+export const markNotificationRead = async (id: string) => {
+  const res = await api.patch(`/api/notifications/${id}/read`);
+  return res.data;
+};
+
+export const markAllNotificationsRead = async () => {
+  const res = await api.patch('/api/notifications/mark-all-read');
+  return res.data;
+};
+
+export const getAdminAuditLogs = async (params: Record<string, string> = {}) => {
+  const res = await api.get('/api/admin/audit-logs', { params });
+  return res.data;
+};
+
+export const triggerDeadlineScan = async () => {
+  const res = await api.post('/api/admin/deadlines/scan');
+  return res.data;
+};
+
+export const recordEscalationAction = async (caseId: string, payload: {
+  actionType: string;
+  reason: string;
+  newTargetDate?: string;
+}) => {
+  const res = await api.post(`/api/admin/deadlines/${caseId}/action`, payload);
+  return res.data;
+};
+
+export const changePassword = async (payload: { currentPassword?: string; newPassword: string }) => {
+  const res = await api.post('/api/auth/change-password', payload);
+  return res.data;
+};
+
 export default api;
 
 

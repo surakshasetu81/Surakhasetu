@@ -1,6 +1,8 @@
 import Case from '../models/Case.js';
 import CaseUpdate from '../models/CaseUpdate.js';
 import AuditLog from '../models/AuditLog.js';
+import Notification from '../models/Notification.js';
+import User from '../models/User.js';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { evaluateSafetyRules, RULE_VERSION } from '../services/safetyPriorityRules.js';
@@ -10,6 +12,7 @@ import { requestMLClassification } from '../services/mlClientService.js';
 import { generateLegalAssessment } from '../services/legalAssessmentEngine.js';
 import { validateVerificationToken } from '../services/organizationVerificationService.js';
 import { isDatabaseConnected } from '../config/database.js';
+import { calculateDeadlineMetrics } from '../services/deadlineService.js';
 
 // In-memory dev storage for development and offline fallback
 export const devCaseStore = {
@@ -453,30 +456,77 @@ export const trackCase = async (req, res) => {
 // GET /api/cases - Staff: list all cases with explainable classification panel details
 export const getAllCases = async (req, res) => {
   try {
-    const { status, priority, verificationStatus, page = 1, limit = 20 } = req.query;
+    const {
+      status,
+      priority,
+      verificationStatus,
+      search,
+      assignedTo,
+      overdueOnly,
+      from,
+      to,
+      page = 1,
+      limit = 20,
+    } = req.query;
+
     const query = {};
     if (status) query.status = status;
     if (priority) query['classification.priority'] = priority;
     if (verificationStatus) query['verification.status'] = verificationStatus;
-    if (req.user.role === 'staff') query.assignedTo = req.user._id;
+
+    // Role-based least-privilege scoping:
+    // Authorized case officers only see cases assigned to them; admins, IC members, and auditors can view all
+    if (['staff', 'case_officer'].includes(req.user.role)) {
+      query.assignedTo = req.user._id;
+    } else if (assignedTo) {
+      query.assignedTo = assignedTo;
+    }
+
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      query.$or = [{ caseId: searchRegex }, { description: searchRegex }, { incidentCategory: searchRegex }];
+    }
+
+    if (overdueOnly === 'true') {
+      query.targetResolutionDate = { $lt: new Date() };
+      query.status = { $nin: ['resolved', 'closed', 'decision_recorded'] };
+    }
+
+    if (from || to) {
+      query.createdAt = {};
+      if (from) query.createdAt.$gte = new Date(from);
+      if (to) query.createdAt.$lte = new Date(to);
+    }
 
     const cases = await Case.find(query)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit))
-      .populate('assignedTo', 'name email')
+      .populate('assignedTo', 'name email staffId role department designation')
       .populate('evidence', 'filename originalName mimetype size sha256Hash integrityStatus lastVerifiedAt')
       .select('-recoveryCode -internalNotes -reporterEmail -reporterPhone');
+
+    // Attach calculated deadline metrics dynamically
+    const enrichedCases = cases.map((c) => {
+      const cObj = c.toObject();
+      const metrics = calculateDeadlineMetrics(c);
+      cObj.isOverdue = metrics.isOverdue;
+      cObj.overdueDays = metrics.overdueDays;
+      cObj.daysRemaining = metrics.daysRemaining;
+      cObj.escalationLevel = metrics.escalationLevel;
+      return cObj;
+    });
 
     const total = await Case.countDocuments(query);
     res.json({
       success: true,
-      cases,
+      cases: enrichedCases,
       total,
       page: Number(page),
       totalPages: Math.ceil(total / limit),
     });
   } catch (err) {
+    console.error('getAllCases error:', err);
     res.status(500).json({ success: false, message: 'Failed to fetch cases' });
   }
 };
@@ -486,17 +536,37 @@ export const getCaseById = async (req, res) => {
   try {
     const { caseId } = req.params;
     const foundCase = await Case.findOne({ caseId })
-      .populate('assignedTo', 'name email role')
+      .populate('assignedTo', 'name email role staffId department designation')
       .populate('evidence')
-      .populate('auditHistory.performedBy', 'name email role')
+      .populate('auditHistory.performedBy', 'name email role staffId')
+      .populate('internalNotesList.author', 'name email role staffId')
       .select('-recoveryCode');
 
     if (!foundCase) {
       return res.status(404).json({ success: false, message: 'Case not found' });
     }
 
-    res.json({ success: true, case: foundCase });
+    // Least privilege authorization check
+    if (['staff', 'case_officer'].includes(req.user.role)) {
+      if (!foundCase.assignedTo || foundCase.assignedTo._id.toString() !== req.user._id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access restricted: You are not authorized to view this confidential case record.',
+        });
+      }
+    }
+
+    // Attach calculated deadline metrics
+    const caseObj = foundCase.toObject();
+    const metrics = calculateDeadlineMetrics(foundCase);
+    caseObj.isOverdue = metrics.isOverdue;
+    caseObj.overdueDays = metrics.overdueDays;
+    caseObj.daysRemaining = metrics.daysRemaining;
+    caseObj.escalationLevel = metrics.escalationLevel;
+
+    res.json({ success: true, case: caseObj });
   } catch (err) {
+    console.error('getCaseById error:', err);
     res.status(500).json({ success: false, message: 'Failed to retrieve case details' });
   }
 };
@@ -831,5 +901,401 @@ export const reviewLegalRecommendation = async (req, res) => {
     res.json({ success: true, message: 'Legal recommendation review updated', framework: fws[frameworkIndex] });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to review legal recommendation' });
+  }
+};
+
+
+// PATCH /api/cases/:caseId/assign - Admin / Committee: Assign or reassign case
+export const assignCase = async (req, res) => {
+  try {
+    const { caseId } = req.params;
+    const { staffId, reason } = req.body;
+
+    if (!staffId) {
+      return res.status(400).json({ success: false, message: 'staffId is required for assignment' });
+    }
+
+    const assignedStaff = await User.findById(staffId);
+    if (!assignedStaff || !assignedStaff.isActive) {
+      return res.status(404).json({ success: false, message: 'Assigned staff member not found or inactive' });
+    }
+
+    const foundCase = await Case.findOne({ caseId });
+    if (!foundCase) {
+      return res.status(404).json({ success: false, message: 'Case not found' });
+    }
+
+    const previousAssignee = foundCase.assignedTo;
+    const isReassignment = !!previousAssignee && previousAssignee.toString() !== staffId.toString();
+
+    if (isReassignment && (!reason || reason.trim().length < 5)) {
+      return res.status(400).json({
+        success: false,
+        message: 'A mandatory reason (minimum 5 characters) is required when reassigning a case',
+      });
+    }
+
+    foundCase.assignedTo = assignedStaff._id;
+    if (['submitted', 'awaiting_review'].includes(foundCase.status)) {
+      foundCase.status = 'assigned';
+    }
+
+    foundCase.auditHistory.push({
+      action: isReassignment ? 'CASE_REASSIGNED' : 'CASE_ASSIGNED',
+      reason: reason?.trim() || `Case assigned to ${assignedStaff.name} (${assignedStaff.staffId || assignedStaff.role})`,
+      performedBy: req.user._id,
+      reviewerName: req.user.name,
+      reviewerRole: req.user.role,
+      timestamp: new Date(),
+    });
+
+    await foundCase.save();
+
+    await CaseUpdate.create({
+      case: foundCase._id,
+      status: foundCase.status,
+      message: `Case assigned for authorized inquiry and review to ${assignedStaff.name}.`,
+      updatedBy: req.user._id,
+      isVisibleToReporter: true,
+    });
+
+    await AuditLog.create({
+      action: isReassignment ? 'CASE_REASSIGNED' : 'CASE_ASSIGNED',
+      performedBy: req.user._id,
+      targetModel: 'Case',
+      targetId: foundCase._id,
+      details: {
+        caseId,
+        assignedTo: assignedStaff._id,
+        assignedStaffName: assignedStaff.name,
+        reason: reason?.trim(),
+      },
+      ipAddress: req.ip,
+    });
+
+    await Notification.create({
+      recipient: assignedStaff._id,
+      recipientRole: assignedStaff.role,
+      caseId,
+      title: isReassignment ? `Case Reassigned: ${caseId}` : `New Case Assigned: ${caseId}`,
+      message: `Case ${caseId} has been assigned to you by ${req.user.name}. Priority: ${foundCase.classification.priority}.`,
+      type: isReassignment ? 'CASE_REASSIGNED' : 'CASE_ASSIGNED',
+      confidentiality: 'INTERNAL_STAFF',
+      actionLink: `/dashboard?case=${caseId}`,
+    });
+
+    res.json({
+      success: true,
+      message: `Case ${caseId} successfully assigned to ${assignedStaff.name}`,
+      case: foundCase,
+    });
+  } catch (err) {
+    console.error('assignCase error:', err);
+    res.status(500).json({ success: false, message: 'Failed to assign case' });
+  }
+};
+
+// POST /api/cases/:caseId/internal-notes - Staff/Admin: Record confidential internal investigation note
+export const addInternalInvestigationNote = async (req, res) => {
+  try {
+    const { caseId } = req.params;
+    const { content } = req.body;
+
+    if (!content || content.trim().length < 5) {
+      return res.status(400).json({ success: false, message: 'Investigation note content (minimum 5 characters) is required' });
+    }
+
+    const foundCase = await Case.findOne({ caseId });
+    if (!foundCase) return res.status(404).json({ success: false, message: 'Case not found' });
+
+    if (['staff', 'case_officer'].includes(req.user.role) && foundCase.assignedTo?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'You are not assigned to this case' });
+    }
+
+    const note = {
+      content: content.trim(),
+      author: req.user._id,
+      authorName: req.user.name,
+      authorRole: req.user.role,
+      isConfidential: true,
+      createdAt: new Date(),
+    };
+
+    foundCase.internalNotesList.push(note);
+    await foundCase.save();
+
+    await AuditLog.create({
+      action: 'INTERNAL_NOTE_RECORDED',
+      performedBy: req.user._id,
+      targetModel: 'Case',
+      targetId: foundCase._id,
+      details: { caseId },
+      ipAddress: req.ip,
+    });
+
+    res.json({
+      success: true,
+      message: 'Confidential internal note recorded',
+      note,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to add internal note' });
+  }
+};
+
+// POST /api/cases/:caseId/inquiry-meetings - Staff/Admin: Schedule inquiry hearing
+export const scheduleInquiryMeeting = async (req, res) => {
+  try {
+    const { caseId } = req.params;
+    const { title, scheduledAt, locationOrLink, attendees, notes, notifyComplainant = true } = req.body;
+
+    if (!title || !scheduledAt) {
+      return res.status(400).json({ success: false, message: 'Hearing title and scheduledAt timestamp are required' });
+    }
+
+    const foundCase = await Case.findOne({ caseId });
+    if (!foundCase) return res.status(404).json({ success: false, message: 'Case not found' });
+
+    const meeting = {
+      title: title.trim(),
+      scheduledAt: new Date(scheduledAt),
+      locationOrLink: locationOrLink?.trim() || 'Internal Committee Hearing Room',
+      attendees: Array.isArray(attendees) ? attendees : [attendees].filter(Boolean),
+      notes: notes?.trim(),
+      scheduledBy: req.user._id,
+      createdAt: new Date(),
+    };
+
+    foundCase.inquiryMeetings.push(meeting);
+    if (['submitted', 'assigned', 'awaiting_review'].includes(foundCase.status)) {
+      foundCase.status = 'inquiry_in_progress';
+    }
+
+    foundCase.auditHistory.push({
+      action: 'INQUIRY_HEARING_SCHEDULED',
+      reason: `Hearing scheduled: "${meeting.title}" on ${new Date(scheduledAt).toLocaleString('en-IN')}`,
+      performedBy: req.user._id,
+      reviewerName: req.user.name,
+      reviewerRole: req.user.role,
+      timestamp: new Date(),
+    });
+
+    await foundCase.save();
+
+    if (notifyComplainant) {
+      await CaseUpdate.create({
+        case: foundCase._id,
+        status: foundCase.status,
+        message: `Inquiry proceeding scheduled: ${meeting.title} on ${new Date(scheduledAt).toLocaleDateString('en-IN')}.`,
+        updatedBy: req.user._id,
+        isVisibleToReporter: true,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Inquiry meeting scheduled successfully',
+      meeting,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to schedule inquiry meeting' });
+  }
+};
+
+// POST /api/cases/:caseId/inquiry-findings - Committee/Admin: Record formal findings & outcome
+export const recordInquiryFindings = async (req, res) => {
+  try {
+    const { caseId } = req.params;
+    const { findingsSummary, recommendations, formalOrderNumber, finalOutcomeStatus = 'resolved' } = req.body;
+
+    if (!findingsSummary || findingsSummary.trim().length < 15) {
+      return res.status(400).json({ success: false, message: 'Formal findings summary (minimum 15 characters) is required' });
+    }
+
+    const foundCase = await Case.findOne({ caseId });
+    if (!foundCase) return res.status(404).json({ success: false, message: 'Case not found' });
+
+    foundCase.inquiryFindings = {
+      findingsSummary: findingsSummary.trim(),
+      recommendations: recommendations?.trim(),
+      formalOrderNumber: formalOrderNumber?.trim(),
+      decidedBy: req.user._id,
+      decidedAt: new Date(),
+      isConcluded: true,
+    };
+
+    foundCase.status = finalOutcomeStatus;
+
+    foundCase.auditHistory.push({
+      action: 'INQUIRY_FINDINGS_RECORDED',
+      reason: `Findings recorded by ${req.user.name}. Order: ${formalOrderNumber || 'N/A'}. Status: ${finalOutcomeStatus}`,
+      performedBy: req.user._id,
+      reviewerName: req.user.name,
+      reviewerRole: req.user.role,
+      timestamp: new Date(),
+    });
+
+    await foundCase.save();
+
+    await CaseUpdate.create({
+      case: foundCase._id,
+      status: finalOutcomeStatus,
+      message: `Committee inquiry concluded. Formal findings and recommendations recorded (Order #${formalOrderNumber || 'N/A'}).`,
+      updatedBy: req.user._id,
+      isVisibleToReporter: true,
+    });
+
+    res.json({
+      success: true,
+      message: 'Inquiry findings recorded and case updated successfully',
+      case: foundCase,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to record inquiry findings' });
+  }
+};
+
+// PATCH /api/cases/:caseId/close-or-reopen - Committee/Admin: Close or Reopen case
+export const closeOrReopenCase = async (req, res) => {
+  try {
+    const { caseId } = req.params;
+    const { action, reason } = req.body;
+
+    if (!['CLOSE', 'REOPEN'].includes(action)) {
+      return res.status(400).json({ success: false, message: "Action must be 'CLOSE' or 'REOPEN'" });
+    }
+    if (!reason || reason.trim().length < 10) {
+      return res.status(400).json({ success: false, message: 'A mandatory justification reason (minimum 10 characters) is required' });
+    }
+
+    const foundCase = await Case.findOne({ caseId });
+    if (!foundCase) return res.status(404).json({ success: false, message: 'Case not found' });
+
+    const newStatus = action === 'CLOSE' ? 'closed' : 'reopened';
+    foundCase.status = newStatus;
+
+    foundCase.auditHistory.push({
+      action: action === 'CLOSE' ? 'CASE_CLOSED' : 'CASE_REOPENED',
+      reason: reason.trim(),
+      performedBy: req.user._id,
+      reviewerName: req.user.name,
+      reviewerRole: req.user.role,
+      timestamp: new Date(),
+    });
+
+    await foundCase.save();
+
+    await CaseUpdate.create({
+      case: foundCase._id,
+      status: newStatus,
+      message: action === 'CLOSE'
+        ? `Case concluded and officially closed: ${reason.trim()}`
+        : `Case reopened for authorized supplementary inquiry: ${reason.trim()}`,
+      updatedBy: req.user._id,
+      isVisibleToReporter: true,
+    });
+
+    await AuditLog.create({
+      action: action === 'CLOSE' ? 'CASE_CLOSED' : 'CASE_REOPENED',
+      performedBy: req.user._id,
+      targetModel: 'Case',
+      targetId: foundCase._id,
+      details: { caseId, reason: reason.trim() },
+      ipAddress: req.ip,
+    });
+
+    res.json({
+      success: true,
+      message: `Case ${caseId} has been ${action === 'CLOSE' ? 'closed' : 'reopened'}`,
+      case: foundCase,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to modify case state' });
+  }
+};
+
+// POST /api/cases/track/provide-info - Complainant: Provide requested additional information via Report ID + Recovery Key
+export const complainantProvideClarification = async (req, res) => {
+  try {
+    const { caseId, reportId, recoveryCode, recoveryKey, requestId, responseText } = req.body;
+    const targetCaseId = (caseId || reportId || '').toString().trim().toUpperCase();
+    const targetKey = (recoveryCode || recoveryKey || '').toString().trim().toUpperCase();
+
+    if (!targetCaseId || !targetKey || !responseText || responseText.trim().length < 5) {
+      return res.status(400).json({ success: false, message: 'Report ID, Recovery Key, and response text are required' });
+    }
+
+    const foundCase = await Case.findOne({ caseId: targetCaseId }).select('+recoveryCode');
+    if (!foundCase) {
+      return res.status(401).json({ success: false, message: 'Invalid Report ID or Recovery Key' });
+    }
+
+    const isMatch = await bcrypt.compare(targetKey, foundCase.recoveryCode);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Invalid Report ID or Recovery Key' });
+    }
+
+    let matchedReq = null;
+    if (requestId && foundCase.clarificationRequests) {
+      matchedReq = foundCase.clarificationRequests.find(r => r.requestId === requestId);
+    }
+    if (matchedReq) {
+      matchedReq.status = 'ANSWERED';
+      matchedReq.response = responseText.trim();
+      matchedReq.respondedAt = new Date();
+    } else {
+      foundCase.clarificationRequests.push({
+        requestId: `clar-${Date.now().toString(36)}`,
+        question: 'Complainant supplementary statement',
+        requestedBy: null,
+        requestedAt: new Date(),
+        status: 'ANSWERED',
+        response: responseText.trim(),
+        respondedAt: new Date(),
+      });
+    }
+
+    if (foundCase.status === 'additional_info_required') {
+      foundCase.status = 'inquiry_in_progress';
+    }
+
+    foundCase.auditHistory.push({
+      action: 'COMPLAINANT_INFORMATION_PROVIDED',
+      reason: 'Complainant submitted requested additional information via authenticated tracking portal.',
+      performedBy: null,
+      reviewerName: 'Complainant (Authenticated via Recovery Key)',
+      reviewerRole: 'complainant',
+      timestamp: new Date(),
+    });
+
+    await foundCase.save();
+
+    await CaseUpdate.create({
+      case: foundCase._id,
+      status: foundCase.status,
+      message: 'Complainant provided requested additional information. Under active review by committee.',
+      updatedBy: null,
+      isVisibleToReporter: true,
+    });
+
+    await Notification.create({
+      recipient: foundCase.assignedTo || null,
+      recipientRole: 'staff',
+      caseId: foundCase.caseId,
+      title: `Information Provided: Case ${foundCase.caseId}`,
+      message: `Complainant has submitted additional information for case ${foundCase.caseId}.`,
+      type: 'CLARIFICATION_SUBMITTED',
+      confidentiality: 'INTERNAL_STAFF',
+      actionLink: `/dashboard?case=${foundCase.caseId}`,
+    });
+
+    res.json({
+      success: true,
+      message: 'Your additional information has been securely received by the committee.',
+      case: foundCase.toPublicJSON(),
+    });
+  } catch (err) {
+    console.error('complainantProvideClarification error:', err);
+    res.status(500).json({ success: false, message: 'Failed to submit additional information' });
   }
 };

@@ -201,7 +201,21 @@ const caseSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['submitted', 'acknowledged', 'under_review', 'additional_info_required', 'decision_recorded', 'closed'],
+    enum: [
+      'submitted',
+      'awaiting_review',
+      'assigned',
+      'under_preliminary_assessment',
+      'inquiry_in_progress',
+      'awaiting_authorized_decision',
+      'resolved',
+      'closed',
+      'reopened',
+      'acknowledged',
+      'under_review',
+      'additional_info_required',
+      'decision_recorded',
+    ],
     default: 'submitted',
   },
   assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -209,6 +223,62 @@ const caseSchema = new mongoose.Schema({
   isUrgent: { type: Boolean, default: false },
   employeeOrCollegeId: { type: String, trim: true, select: false },
   internalNotes: { type: String, select: false },
+
+  // Deadline & Statutory Tracking (60-Day Internal Target, 90-Day POSH Act Sec 11(4))
+  targetResolutionDate: {
+    type: Date,
+    default: () => new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+  },
+  statutoryDueDate: {
+    type: Date,
+    default: () => new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+  },
+  internalTargetDays: { type: Number, default: 60 },
+  statutoryTargetDays: { type: Number, default: 90 },
+  isOverdue: { type: Boolean, default: false },
+  overdueDays: { type: Number, default: 0 },
+  daysRemaining: { type: Number, default: 60 },
+
+  // Internal Confidential Investigation Notes (strictly excluded from public/complainant tracking)
+  internalNotesList: [{
+    content: { type: String, required: true },
+    author: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    authorName: { type: String, default: 'Authorized Staff' },
+    authorRole: { type: String, default: 'staff' },
+    isConfidential: { type: Boolean, default: true },
+    createdAt: { type: Date, default: Date.now },
+  }],
+
+  // Inquiry Milestones & Hearings Schedule
+  inquiryMeetings: [{
+    title: { type: String, required: true },
+    scheduledAt: { type: Date, required: true },
+    locationOrLink: { type: String, default: 'Internal Committee Hearing Room' },
+    attendees: [String],
+    notes: String,
+    scheduledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    createdAt: { type: Date, default: Date.now },
+  }],
+
+  inquiryFindings: {
+    findingsSummary: { type: String, default: null },
+    recommendations: { type: String, default: null },
+    formalOrderNumber: { type: String, default: null },
+    decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    decidedAt: { type: Date, default: null },
+    isConcluded: { type: Boolean, default: false },
+  },
+
+  // Two-way Clarification Exchange
+  clarificationRequests: [{
+    requestId: { type: String, required: true },
+    question: { type: String, required: true },
+    requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    requestedAt: { type: Date, default: Date.now },
+    status: { type: String, enum: ['PENDING', 'ANSWERED'], default: 'PENDING' },
+    response: { type: String, default: null },
+    respondedAt: { type: Date, default: null },
+  }],
 
   // AI/ML, Safety Safeguards & Integrity Fields
   organizationVerification: { type: organizationVerificationSchema, default: () => ({ isVerified: false }) },
@@ -233,6 +303,18 @@ caseSchema.methods.toPublicJSON = function () {
     supportRequired: this.supportRequired,
     isUrgent: this.isUrgent,
     legalAdvisory: this.legalAdvisory,
+    targetResolutionDate: this.targetResolutionDate,
+    statutoryDueDate: this.statutoryDueDate,
+    isOverdue: this.isOverdue || false,
+    daysRemaining: typeof this.daysRemaining === 'number' ? this.daysRemaining : 60,
+    clarificationRequests: (this.clarificationRequests || []).map(r => ({
+      requestId: r.requestId,
+      question: r.question,
+      requestedAt: r.requestedAt,
+      status: r.status,
+      response: r.response,
+      respondedAt: r.respondedAt,
+    })),
     organizationVerification: this.organizationVerification?.isVerified ? {
       isVerified: true,
       organizationType: this.organizationVerification.organizationType,

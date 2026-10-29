@@ -5,8 +5,11 @@ export interface User {
   _id: string;
   name: string;
   email: string;
-  role: 'admin' | 'staff' | 'committee' | 'ombudsman' | 'user';
+  role: 'admin' | 'staff' | 'ic_member' | 'case_officer' | 'auditor' | 'committee' | 'ombudsman' | 'user';
   department?: string;
+  designation?: string;
+  staffId?: string;
+  mustChangePassword?: boolean;
 }
 
 interface AuthContextValue {
