@@ -36,7 +36,7 @@ function HeroSection() {
                 }}
               >
                 <Shield size={14} style={{ flexShrink: 0 }} />
-                <span>Women • Safety • Workplace Dignity</span>
+                <span>Women | Safety | Workplace Dignity</span>
               </span>
             </div>
 
@@ -383,10 +383,10 @@ function KnowYourRights() {
                 }}
                 aria-label={`Official Source for ${law.title} (opens in a new tab)`}
               >
-                <BookOpen size={13} /> Official Source ↗
+                <BookOpen size={13} /> Official Source
               </a>
               <p style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: 10 }}>
-                * This is an informational summary. For legal advice, consult a qualified advocate.
+                Note: This is an informational summary. For legal advice, consult a qualified advocate.
               </p>
             </motion.div>
           ))}
@@ -491,14 +491,14 @@ function CounsellingSupportCTA() {
                     style={{
                       fontSize: '0.78rem',
                       fontWeight: 600,
-                      padding: '4px 10px',
+                      padding: '4px 12px',
                       borderRadius: 'var(--radius-full)',
                       background: 'var(--color-card)',
                       border: '1px solid var(--color-border)',
                       color: 'var(--color-text-secondary)',
                     }}
                   >
-                    • {tag}
+                    {tag}
                   </span>
                 ))}
               </div>
@@ -582,10 +582,10 @@ function CounsellingSupportCTA() {
 // ─── Community Support ────────────────────────────────────────────────────────
 function CommunitySupport() {
   const resources = [
-    { icon: HeadphonesIcon, label: 'Counselling', desc: 'iCall: 9152987821 · Vandrevala Foundation: 1860-2662-345', color: '#7C3AED' },
-    { icon: Scale, label: 'Legal Aid', desc: 'National Legal Services Authority: 15100 · District Legal Services Authorities', color: '#0891B2' },
+    { icon: HeadphonesIcon, label: 'Counselling', desc: 'iCall: 9152987821 | Vandrevala Foundation: 1860-2662-345', color: '#7C3AED' },
+    { icon: Scale, label: 'Legal Aid', desc: 'National Legal Services Authority: 15100 | District Legal Services Authorities', color: '#0891B2' },
     { icon: Users, label: 'ICC / LCC', desc: 'Internal Complaints Committees at your workplace or Local Complaints Committee at district level', color: 'var(--color-primary)' },
-    { icon: Phone, label: 'Support Helplines', desc: 'Women Helpline: 181 · Childline: 1098 · NCW: 7827170170', color: 'var(--color-success)' },
+    { icon: Phone, label: 'Support Helplines', desc: 'Women Helpline: 181 | Childline: 1098 | NCW: 7827170170', color: 'var(--color-success)' },
   ];
 
   return (

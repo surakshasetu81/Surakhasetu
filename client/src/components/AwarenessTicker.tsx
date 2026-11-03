@@ -27,7 +27,7 @@ export default function AwarenessTicker() {
             gap: 16,
           }}>
             {msg}
-            <span style={{ opacity: 0.5, fontSize: '0.6rem' }}>❋</span>
+            <span style={{ opacity: 0.35, fontSize: '0.8rem', margin: '0 8px' }}>|</span>
           </span>
         ))}
       </div>
