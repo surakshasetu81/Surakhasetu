@@ -286,6 +286,30 @@ const caseSchema = new mongoose.Schema({
     isConcluded: { type: Boolean, default: false },
   },
 
+  // Final Case Closure & Historical Reopening Archive
+  closureDetails: {
+    closedAt: { type: Date, default: null },
+    closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    closedByName: { type: String, default: null },
+    closedByRole: { type: String, default: null },
+    closureRemarks: { type: String, default: null },
+    finalOrderRef: { type: String, default: null },
+    reportReferenceNumber: { type: String, default: null },
+  },
+  closureHistory: [{
+    closedAt: { type: Date, default: Date.now },
+    closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    closedByName: { type: String, default: null },
+    closedByRole: { type: String, default: null },
+    closureRemarks: { type: String, required: true },
+    finalOrderRef: { type: String, default: null },
+    reportReferenceNumber: { type: String, default: null },
+    reopenedAt: { type: Date, default: null },
+    reopenedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    reopenedByName: { type: String, default: null },
+    reopeningReason: { type: String, default: null },
+  }],
+
   // Two-way Clarification Exchange
   clarificationRequests: [{
     requestId: { type: String, required: true },

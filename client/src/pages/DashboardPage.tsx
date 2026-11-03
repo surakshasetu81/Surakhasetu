@@ -3,7 +3,8 @@ import {
   LayoutDashboard, FileText, Users, Clock, RefreshCw,
   ShieldAlert, ShieldCheck, Scale, History, AlertTriangle,
   Lock, Search, UserPlus, UserCheck, UserX, Key, Calendar,
-  Bell, X, FolderOpen, Shield, HelpCircle, CheckCircle2, MessageSquare
+  Bell, X, FolderOpen, Shield, HelpCircle, CheckCircle2, MessageSquare,
+  HeartHandshake, Download, FileCheck
 } from 'lucide-react';
 import CaseConversation from '../components/CaseConversation';
 import { getStaffConversations, getStaffConversationStats, type ConversationItem } from '../services/api';
@@ -31,6 +32,11 @@ import {
   verifyEvidenceChecksum,
   overrideCasePriority,
   downloadStaffCaseVaultEvidence,
+  getStaffSafetyAlerts,
+  updateStaffSafetyFollowup,
+  getCounsellingRequests,
+  updateCounsellingRequestStatus,
+  downloadInquiryReportPDF,
 } from '../services/api';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -127,7 +133,49 @@ interface CaseItem {
   incidentCategory: string;
   incidentDate?: string;
   incidentDescription?: string;
+  description?: string;
+  location?: string;
+  preferredLanguage?: string;
+  supportRequired?: string[];
   isAnonymous: boolean;
+  reporterName?: string;
+  reporterEmail?: string;
+  reporterPhone?: string;
+  organizationVerification?: {
+    isVerified?: boolean;
+    organizationName?: string;
+    organizationType?: string;
+    verificationMethod?: string;
+  };
+  classification?: {
+    category?: string;
+    severity?: string;
+    severityScore?: number;
+    confidence?: number;
+    reasoning?: string;
+  };
+  legalAdvisory?: {
+    recommendedActs?: string[];
+    suggestedSections?: string[];
+  };
+  closureDetails?: {
+    closedAt?: string;
+    closedByName?: string;
+    closedByRole?: string;
+    closureRemarks?: string;
+    finalOrderRef?: string;
+    reportReferenceNumber?: string;
+  };
+  closureHistory?: Array<{
+    closedAt: string;
+    closedByName?: string;
+    closureRemarks: string;
+    finalOrderRef?: string;
+    reportReferenceNumber?: string;
+    reopenedAt?: string;
+    reopenedByName?: string;
+    reopeningReason?: string;
+  }>;
   isUrgent?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -135,15 +183,17 @@ interface CaseItem {
   statutoryDueDate?: string;
   daysRemaining?: number;
   isOverdue?: boolean;
-  assignedTo?: { _id: string; name: string; email: string; staffId?: string; designation?: string };
+  assignedTo?: { _id: string; name: string; email: string; staffId?: string; designation?: string; role?: string };
   evidence?: Array<{
     _id: string;
-    fileId: string;
+    fileId?: string;
     filename: string;
     originalName: string;
-    mimeType: string;
+    mimeType?: string;
+    mimetype?: string;
     size: number;
     sha256Hash: string;
+    integrityStatus?: string;
     uploadedAt: string;
   }>;
   vaultEvidence?: Array<{
@@ -214,7 +264,7 @@ export default function DashboardPage() {
   const { user, loading, logout } = useAuth();
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'cases' | 'communications' | 'staff' | 'overdue' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'cases' | 'communications' | 'safety' | 'counselling' | 'staff' | 'overdue' | 'audit'>('overview');
   const [commConversations, setCommConversations] = useState<ConversationItem[]>([]);
   const [commSelectedCaseId, setCommSelectedCaseId] = useState<string | null>(null);
   const [commStats, setCommStats] = useState<any>(null);
@@ -223,6 +273,16 @@ export default function DashboardPage() {
   const [commPriorityFilter, setCommPriorityFilter] = useState('all');
   const [commStatusFilter, setCommStatusFilter] = useState('all');
   const [loadingComm, setLoadingComm] = useState(false);
+
+  const [safetyAlerts, setSafetyAlerts] = useState<any[]>([]);
+  const [safetyAlertsLoading, setSafetyAlertsLoading] = useState(false);
+  const [followupNote, setFollowupNote] = useState('');
+
+  // Counselling Requests State
+  const [counsellingRequests, setCounsellingRequests] = useState<any[]>([]);
+  const [counsellingLoading, setCounsellingLoading] = useState(false);
+  const [counsellingStatusFilter, setCounsellingStatusFilter] = useState('');
+  const [counsellingNoteInput, setCounsellingNoteInput] = useState<{ [id: string]: string }>({});
 
   // Metrics State
   const [metrics, setMetrics] = useState<DashboardMetrics>({
@@ -454,7 +514,47 @@ export default function DashboardPage() {
     }
   };
 
+  // Load Counselling Requests (Authorized staff & counsellors)
+  const loadCounsellingRequests = async () => {
+    setCounsellingLoading(true);
+    try {
+      const data = await getCounsellingRequests({
+        status: counsellingStatusFilter || undefined,
+        limit: 50,
+      });
+      setCounsellingRequests(data.requests || []);
+    } catch (err) {
+      console.error('Failed to load counselling requests:', err);
+      setCounsellingRequests([]);
+    } finally {
+      setCounsellingLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'counselling') {
+      loadCounsellingRequests();
+    }
+  }, [activeTab, counsellingStatusFilter]);
   // Load Audit Logs
+  const loadSafetyAlerts = async () => {
+    setSafetyAlertsLoading(true);
+    try {
+      const data = await getStaffSafetyAlerts();
+      setSafetyAlerts(data.alerts || []);
+    } catch {
+      setSafetyAlerts([]);
+    } finally {
+      setSafetyAlertsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'safety') {
+      loadSafetyAlerts();
+    }
+  }, [activeTab]);
+
   const loadAuditLogs = async () => {
     if (!isMainAdmin && !isAuditor) return;
     setAuditLoading(true);
@@ -1001,6 +1101,46 @@ export default function DashboardPage() {
               </span>
             )}
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('safety')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: activeTab === 'safety' ? '#D92D35' : 'transparent',
+              color: activeTab === 'safety' ? '#FFF' : '#D92D35',
+              fontWeight: 800,
+              fontSize: '0.86rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <ShieldAlert size={15} /> Immediate Safety Alerts
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('counselling')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: activeTab === 'counselling' ? 'var(--color-primary)' : 'transparent',
+              color: activeTab === 'counselling' ? '#FFF' : 'var(--color-primary)',
+              fontWeight: 800,
+              fontSize: '0.86rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <HeartHandshake size={15} /> Counselling Requests
+          </button>
           <button
             type="button"
             onClick={() => setActiveTab('cases')}
@@ -1089,6 +1229,409 @@ export default function DashboardPage() {
 
       {/* ─── MAIN CONTENT CONTAINER ───────────────────────────────────────────── */}
       <main style={{ maxWidth: 1400, margin: '24px auto', padding: '0 24px' }}>
+
+        {/* ─── TAB: IMMEDIATE SAFETY ALERTS ───────────────────────────────────── */}
+        {activeTab === 'safety' && (
+          <div>
+            <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '0 0 4px', color: '#D92D35', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <ShieldAlert size={24} /> Immediate Safety Alerts & Complainant Escalations
+                </h2>
+                <p style={{ margin: 0, fontSize: '0.86rem', color: 'var(--color-text-secondary)' }}>
+                  Live incoming alerts reported by complainants on post-submission safety triage. Requires immediate human review.
+                </p>
+              </div>
+              <button
+                onClick={loadSafetyAlerts}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <RefreshCw size={14} /> Refresh Safety Alerts
+              </button>
+            </div>
+
+            {safetyAlertsLoading ? (
+              <div style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-secondary)' }}>Loading safety alerts...</div>
+            ) : safetyAlerts.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 48, background: 'var(--color-card)', borderRadius: 12, border: '1px solid var(--color-border)' }}>
+                <CheckCircle2 size={40} color="var(--color-success)" style={{ margin: '0 auto 12px' }} />
+                <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem', fontWeight: 700 }}>No Active Immediate Danger Alerts</h3>
+                <p style={{ margin: 0, fontSize: '0.86rem', color: 'var(--color-text-secondary)' }}>
+                  All reported cases have satisfied initial safety triage or follow-ups have been acknowledged.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {safetyAlerts.map(alert => (
+                  <div
+                    key={alert._id}
+                    style={{
+                      background: 'var(--color-card)',
+                      border: alert.priority === 'HIGH' ? '1.5px solid #D92D35' : '1px solid var(--color-border)',
+                      borderRadius: 12,
+                      padding: 20,
+                      boxShadow: 'var(--shadow-sm)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--color-primary)' }}>
+                            Case: {alert.caseId}
+                          </span>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            background: alert.priority === 'HIGH' ? 'rgba(217, 45, 53, 0.15)' : 'rgba(217, 119, 6, 0.15)',
+                            color: alert.priority === 'HIGH' ? '#D92D35' : '#D97706',
+                          }}>
+                            {alert.priority} PRIORITY
+                          </span>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            background: 'var(--color-soft-pink)',
+                            color: 'var(--color-primary)',
+                          }}>
+                            Status: {alert.safetyStatus}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+                          Reported: {new Date(alert.createdAt).toLocaleString()} • Trigger: {alert.triggerSource}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          background: alert.humanReviewStatus === 'PENDING' ? 'rgba(217, 45, 53, 0.1)' : 'rgba(22, 133, 107, 0.1)',
+                          color: alert.humanReviewStatus === 'PENDING' ? '#D92D35' : 'var(--color-success)',
+                        }}>
+                          Review: {alert.humanReviewStatus}
+                        </span>
+                      </div>
+                    </div>
+
+                    {alert.case && (
+                      <div style={{ background: 'var(--color-bg-secondary)', padding: '10px 14px', borderRadius: 8, fontSize: '0.84rem', marginBottom: 14 }}>
+                        <strong>Incident Category:</strong> {alert.case.incidentCategory} • <strong>Case Status:</strong> {alert.case.status}
+                      </div>
+                    )}
+
+                    {/* Staff Follow-up Form */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+                      <input
+                        type="text"
+                        placeholder="Record staff follow-up action / referral note..."
+                        value={followupNote}
+                        onChange={e => setFollowupNote(e.target.value)}
+                        style={{
+                          flex: 1,
+                          minWidth: 260,
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-bg)',
+                          fontSize: '0.84rem',
+                          color: 'var(--color-text-main)',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await updateStaffSafetyFollowup(alert._id, {
+                            humanReviewStatus: 'ACKNOWLEDGED',
+                            staffReviewNotes: followupNote || 'Alert acknowledged by authorized staff.',
+                            assignToSelf: true,
+                          });
+                          alert('Safety alert acknowledged.');
+                          setFollowupNote('');
+                          loadSafetyAlerts();
+                        }}
+                        className="btn btn-secondary btn-sm"
+                        style={{ fontWeight: 700 }}
+                      >
+                        Acknowledge Alert
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!followupNote.trim()) {
+                            alert('Please enter referral notes.');
+                            return;
+                          }
+                          await updateStaffSafetyFollowup(alert._id, {
+                            humanReviewStatus: 'REFERRED_TO_SERVICES',
+                            staffReviewNotes: followupNote.trim(),
+                            assignToSelf: true,
+                          });
+                          alert('Referred to support services and logged.');
+                          setFollowupNote('');
+                          loadSafetyAlerts();
+                        }}
+                        className="btn btn-primary btn-sm"
+                        style={{ fontWeight: 700 }}
+                      >
+                        Refer to One Stop Centre / Support
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─── TAB: COUNSELLING REQUESTS MANAGEMENT (AUTHORIZED STAFF / COUNSELLORS) ─── */}
+        {activeTab === 'counselling' && (
+          <div style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 24, boxShadow: 'var(--shadow-sm)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <HeartHandshake size={24} /> Counselling & Mental Health Support Requests
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '0.86rem', color: 'var(--color-text-secondary)' }}>
+                  Confidential session requests submitted by complainants during post-intake triage. Complaint details are strictly safeguarded.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <select
+                  value={counsellingStatusFilter}
+                  onChange={(e) => setCounsellingStatusFilter(e.target.value)}
+                  className="form-input"
+                  style={{ fontSize: '0.84rem', padding: '6px 12px' }}
+                >
+                  <option value="">All Statuses</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Assigned">Assigned</option>
+                  <option value="Contacted">Contacted</option>
+                  <option value="Session Scheduled">Session Scheduled</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={loadCounsellingRequests}
+                  className="btn btn-secondary btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <RefreshCw size={14} /> Refresh
+                </button>
+              </div>
+            </div>
+
+            {counsellingLoading ? (
+              <div style={{ textAlign: 'center', padding: 40, color: 'var(--color-text-secondary)' }}>
+                Loading counselling requests...
+              </div>
+            ) : counsellingRequests.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 48, background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)' }}>
+                <HeartHandshake size={40} color="var(--color-text-secondary)" style={{ opacity: 0.5, marginBottom: 12 }} />
+                <h4 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 700 }}>No Counselling Requests Found</h4>
+                <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--color-text-secondary)' }}>
+                  No active counselling requests match the selected filter.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {counsellingRequests.map((reqItem) => {
+                  const statusColors: Record<string, { bg: string; text: string; border: string }> = {
+                    Pending: { bg: 'rgba(234, 88, 12, 0.08)', text: '#EA580C', border: '#EA580C' },
+                    Assigned: { bg: 'rgba(37, 99, 235, 0.08)', text: '#2563EB', border: '#2563EB' },
+                    Contacted: { bg: 'rgba(124, 58, 237, 0.08)', text: '#7C3AED', border: '#7C3AED' },
+                    'Session Scheduled': { bg: 'rgba(194, 24, 91, 0.08)', text: 'var(--color-primary)', border: 'var(--color-primary)' },
+                    Completed: { bg: 'rgba(22, 133, 107, 0.08)', text: '#16856B', border: '#16856B' },
+                    Cancelled: { bg: 'rgba(107, 114, 128, 0.08)', text: '#6B7280', border: '#6B7280' },
+                  };
+                  const colorScheme = statusColors[reqItem.status] || statusColors.Pending;
+
+                  return (
+                    <div
+                      key={reqItem._id}
+                      style={{
+                        padding: '20px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-card)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--color-text-main)' }}>
+                              Ref: {reqItem.referenceId || reqItem._id}
+                            </span>
+                            <span
+                              style={{
+                                padding: '3px 10px',
+                                borderRadius: 12,
+                                fontSize: '0.74rem',
+                                fontWeight: 800,
+                                background: colorScheme.bg,
+                                color: colorScheme.text,
+                                border: `1px solid ${colorScheme.border}30`,
+                              }}
+                            >
+                              {reqItem.status}
+                            </span>
+                            {reqItem.caseId && (
+                              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', background: 'var(--color-bg-secondary)', padding: '2px 8px', borderRadius: 4 }}>
+                                Case: <strong>{reqItem.caseId}</strong>
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                            Requested on: {new Date(reqItem.createdAt).toLocaleString()}
+                          </div>
+                        </div>
+
+                        {/* Status Update Quick Dropdown */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--color-text-secondary)' }}>
+                            Update Status:
+                          </label>
+                          <select
+                            value={reqItem.status}
+                            onChange={async (e) => {
+                              const newStatus = e.target.value;
+                              await updateCounsellingRequestStatus(reqItem._id, { status: newStatus });
+                              loadCounsellingRequests();
+                            }}
+                            className="form-input"
+                            style={{ fontSize: '0.82rem', padding: '5px 10px', fontWeight: 700 }}
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="Assigned">Assigned</option>
+                            <option value="Contacted">Contacted</option>
+                            <option value="Session Scheduled">Session Scheduled</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Request Details Grid */}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                          gap: 12,
+                          background: 'var(--color-bg-secondary)',
+                          padding: '14px 16px',
+                          borderRadius: 8,
+                          marginBottom: 14,
+                          fontSize: '0.84rem',
+                        }}
+                      >
+                        <div>
+                          <strong style={{ display: 'block', fontSize: '0.74rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
+                            Preferred Date & Window
+                          </strong>
+                          <span>{reqItem.preferredDate} ({reqItem.preferredTimeSlot})</span>
+                        </div>
+                        <div>
+                          <strong style={{ display: 'block', fontSize: '0.74rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
+                            Mode & Contact Method
+                          </strong>
+                          <span>
+                            {reqItem.preferredMode === 'telephonic' ? 'Audio Call' : reqItem.preferredMode === 'video' ? 'Video' : 'In-Person'} • {reqItem.preferredContactMethod || 'phone'}
+                          </span>
+                        </div>
+                        <div>
+                          <strong style={{ display: 'block', fontSize: '0.74rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
+                            Contact Information
+                          </strong>
+                          <span>{reqItem.contactPhoneOrEmail || '(Anonymous / via Platform)'}</span>
+                        </div>
+                        <div>
+                          <strong style={{ display: 'block', fontSize: '0.74rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
+                            Language
+                          </strong>
+                          <span>{reqItem.preferredLanguage?.toUpperCase() || 'EN'}</span>
+                        </div>
+                      </div>
+
+                      {reqItem.notes && (
+                        <div style={{ marginBottom: 14, fontSize: '0.84rem' }}>
+                          <strong style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>Complainant Support Note:</strong>
+                          <p style={{ margin: '4px 0 0', padding: '8px 12px', background: 'var(--color-bg-secondary)', borderRadius: 6, fontStyle: 'italic' }}>
+                            "{reqItem.notes}"
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Staff/Counsellor Progress Notes */}
+                      {reqItem.staffNotes && reqItem.staffNotes.length > 0 && (
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+                            Session / Contact Log:
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {reqItem.staffNotes.map((sn: any, idx: number) => (
+                              <div
+                                key={idx}
+                                style={{
+                                  fontSize: '0.8rem',
+                                  padding: '6px 10px',
+                                  background: 'var(--color-card)',
+                                  border: '1px solid var(--color-border)',
+                                  borderRadius: 6,
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                }}
+                              >
+                                <span>{sn.note}</span>
+                                <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.74rem' }}>
+                                  {sn.authorName} • {new Date(sn.createdAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Add Staff Log Input */}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <input
+                          type="text"
+                          placeholder="Log contact outcome or session scheduling note..."
+                          value={counsellingNoteInput[reqItem._id] || ''}
+                          onChange={(e) => setCounsellingNoteInput({ ...counsellingNoteInput, [reqItem._id]: e.target.value })}
+                          className="form-input"
+                          style={{ flex: 1, fontSize: '0.82rem' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const noteText = counsellingNoteInput[reqItem._id];
+                            if (!noteText || !noteText.trim()) return;
+                            await updateCounsellingRequestStatus(reqItem._id, { note: noteText.trim() });
+                            setCounsellingNoteInput({ ...counsellingNoteInput, [reqItem._id]: '' });
+                            loadCounsellingRequests();
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontWeight: 700 }}
+                        >
+                          Add Log Note
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ─── TAB 1: OVERVIEW & 11 REAL METRICS ───────────────────────────────── */}
         {activeTab === 'overview' && (
@@ -2223,6 +2766,83 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {/* PART 4 & 5: DOWNLOAD COMPLETE OFFICIAL INQUIRY REPORT (PDF) BANNER (CLOSED CASES ONLY) */}
+            {selectedCase.status === 'closed' ? (
+              <div
+                style={{
+                  padding: '16px 20px',
+                  borderRadius: 'var(--radius-lg)',
+                  background: 'linear-gradient(135deg, rgba(194, 24, 91, 0.08) 0%, rgba(37, 99, 235, 0.08) 100%)',
+                  border: '1.5px solid var(--color-primary)',
+                  marginBottom: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <FileCheck size={20} color="var(--color-primary)" />
+                    <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: 800, color: 'var(--color-primary)' }}>
+                      Complete Inquiry Report & Case Docket (PDF)
+                    </h4>
+                  </div>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                    Case officially concluded. Download the authorized, multi-page confidential statutory inquiry dossier.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const blobData = await downloadInquiryReportPDF(selectedCase.caseId);
+                      const blob = new Blob([blobData], { type: 'application/pdf' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `SurakshaSetu_InquiryReport_${selectedCase.caseId}.pdf`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    } catch (err: any) {
+                      console.error('Download inquiry report error:', err);
+                      alert(err.response?.data?.message || 'Failed to download inquiry report PDF.');
+                    }
+                  }}
+                  className="btn btn-primary btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 800, padding: '8px 16px' }}
+                >
+                  <Download size={15} /> Download Complete Inquiry Report (PDF)
+                </button>
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  background: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border)',
+                  marginBottom: 18,
+                  fontSize: '0.78rem',
+                  color: 'var(--color-text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <span>
+                  <strong>Official Inquiry Report (PDF):</strong> Available for download once inquiry proceedings are concluded and case status is formally set to <strong>Closed</strong>.
+                </span>
+                <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#D97706' }}>
+                  Current Status: {STATUS_LABELS[selectedCase.status] || selectedCase.status}
+                </span>
+              </div>
+            )}
+
             {/* Section 1: Intake & POSH Timeline Overview */}
             <div className="card" style={{ padding: 18, marginBottom: 18, background: 'var(--color-bg-secondary)' }}>
               <h4 style={{ margin: '0 0 10px', fontSize: '0.92rem', fontWeight: 800 }}>Incident Overview & Statutory Mandates</h4>
@@ -2248,11 +2868,175 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
+            </div>
 
-              {selectedCase.incidentDescription && (
-                <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--color-border)' }}>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Intake Statement / Abstract:</span>
-                  <p style={{ margin: '4px 0 0', fontSize: '0.86rem', lineHeight: 1.5 }}>{selectedCase.incidentDescription}</p>
+            {/* ══════════════════════════════════════════════════════════════════
+                PART 1 & 2: ORIGINAL COMPLAINT & INCIDENT DETAILS (STRUCTURED)
+                ══════════════════════════════════════════════════════════════════ */}
+            <div className="card" style={{ padding: 20, marginBottom: 18, border: '1.5px solid var(--color-primary)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <FileText size={18} /> Original Complaint & Incident Details
+                </h4>
+                <span
+                  style={{
+                    padding: '3px 10px',
+                    borderRadius: 12,
+                    fontSize: '0.74rem',
+                    fontWeight: 800,
+                    background: selectedCase.isAnonymous ? 'var(--color-soft-pink)' : 'rgba(37, 99, 235, 0.1)',
+                    color: selectedCase.isAnonymous ? 'var(--color-primary)' : '#2563EB',
+                  }}
+                >
+                  {selectedCase.isAnonymous ? 'Protected Anonymous Intake' : 'Identified Complainant'}
+                </span>
+              </div>
+
+              {/* A. Original Incident Statement (Full Text) */}
+              <div style={{ marginBottom: 16 }}>
+                <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  A. Original Incident Statement (Full Verbatim Complaint Text)
+                </span>
+                <div
+                  style={{
+                    marginTop: 6,
+                    padding: '14px 16px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--color-bg-secondary)',
+                    border: '1px solid var(--color-border)',
+                    fontSize: '0.9rem',
+                    lineHeight: 1.6,
+                    color: 'var(--color-text-main)',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {selectedCase.description || selectedCase.incidentDescription || '(No narrative statement text recorded at intake)'}
+                </div>
+              </div>
+
+              {/* B. Incident Information */}
+              <div style={{ marginBottom: 16 }}>
+                <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  B. Incident Circumstances & Parameters
+                </span>
+                <div
+                  style={{
+                    marginTop: 6,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: 12,
+                    padding: '12px 14px',
+                    borderRadius: 8,
+                    background: 'var(--color-bg-secondary)',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Incident Date & Time:</span>
+                    <p style={{ margin: '2px 0 0', fontWeight: 700, fontSize: '0.84rem' }}>
+                      {selectedCase.incidentDate ? new Date(selectedCase.incidentDate).toLocaleString('en-IN') : 'Not specified by complainant'}
+                    </p>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Incident Location:</span>
+                    <p style={{ margin: '2px 0 0', fontWeight: 700, fontSize: '0.84rem' }}>
+                      {selectedCase.location || 'Not specified by complainant'}
+                    </p>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Type of Harassment:</span>
+                    <p style={{ margin: '2px 0 0', fontWeight: 700, fontSize: '0.84rem' }}>
+                      {selectedCase.incidentCategory}
+                    </p>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Support Preferences Selected:</span>
+                    <p style={{ margin: '2px 0 0', fontWeight: 700, fontSize: '0.84rem', color: 'var(--color-primary)' }}>
+                      {(selectedCase.supportRequired && selectedCase.supportRequired.length > 0) ? selectedCase.supportRequired.join(', ') : 'Standard IC Inquiry'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* C. People Involved */}
+              <div style={{ marginBottom: 16 }}>
+                <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  C. People Involved & Access Controls
+                </span>
+                <div
+                  style={{
+                    marginTop: 6,
+                    padding: '12px 14px',
+                    borderRadius: 8,
+                    background: 'var(--color-bg-secondary)',
+                    fontSize: '0.84rem',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {selectedCase.isAnonymous ? (
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-primary)', fontWeight: 700 }}>
+                        <Lock size={14} /> Anonymous Reporting Safeguard Active
+                      </div>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                        Complainant elected anonymous intake. Identifying names, phone numbers, and personal email addresses are withheld under whistleblower protection protocols.
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Complainant Name:</span>
+                        <p style={{ margin: '2px 0 0', fontWeight: 700 }}>{selectedCase.reporterName || 'Confidential on record'}</p>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Email:</span>
+                        <p style={{ margin: '2px 0 0', fontWeight: 700 }}>{selectedCase.reporterEmail || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Phone:</span>
+                        <p style={{ margin: '2px 0 0', fontWeight: 700 }}>{selectedCase.reporterPhone || 'N/A'}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                    <strong>Respondent & Witnesses:</strong> Identified within verbatim statement text and summons notices in Section 3 below.
+                  </div>
+                </div>
+              </div>
+
+              {/* D. AI Screening Assessment (Clearly distinguished as advisory) */}
+              {selectedCase.classification && (
+                <div>
+                  <span style={{ fontSize: '0.76rem', fontWeight: 800, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    D. AI Screening Assessment (Advisory / Non-Binding)
+                  </span>
+                  <div
+                    style={{
+                      marginTop: 6,
+                      padding: '12px 14px',
+                      borderRadius: 8,
+                      background: 'rgba(37, 99, 235, 0.05)',
+                      border: '1px solid rgba(37, 99, 235, 0.2)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 6 }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#2563EB' }}>
+                        Severity: {selectedCase.classification.severity || 'STANDARD'} (Score: {selectedCase.classification.severityScore ?? 'N/A'})
+                      </span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-text-secondary)' }}>
+                        Confidence: {selectedCase.classification.confidence ? `${Math.round(selectedCase.classification.confidence * 100)}%` : 'Rule-based'}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#16856B' }}>
+                        Category: {selectedCase.classification.category || selectedCase.incidentCategory}
+                      </span>
+                    </div>
+                    {selectedCase.classification.reasoning && (
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontStyle: 'italic', lineHeight: 1.45 }}>
+                        "{selectedCase.classification.reasoning}"
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -2563,24 +3347,42 @@ export default function DashboardPage() {
 
                   {/* Standard Form Uploaded Evidence */}
                   {selectedCase.evidence && selectedCase.evidence.map((ev) => (
-                    <div key={ev._id} style={{ padding: 10, background: 'var(--color-bg-secondary)', borderRadius: 8 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div key={ev._id} style={{ padding: 12, background: 'var(--color-bg-secondary)', borderRadius: 10, border: '1px solid var(--color-border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: '0.84rem' }}>{ev.originalName || ev.filename}</div>
-                          <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>
-                            SHA-256: {ev.sha256Hash || 'Stored at intake'}
+                          <div style={{ fontWeight: 700, fontSize: '0.86rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <FileText size={14} color="var(--color-primary)" />
+                            {ev.originalName || ev.filename}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                            {ev.mimetype || ev.mimeType || 'Document'} • {ev.size ? `${(ev.size / 1024).toFixed(1)} KB` : 'Uploaded'} • SHA-256: {ev.sha256Hash ? `${ev.sha256Hash.substring(0, 24)}...` : 'Intake check'}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleVerifyEvidence(ev.fileId || ev._id)}
-                          className="btn btn-secondary btn-sm"
-                        >
-                          Verify Checksum
-                        </button>
+
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleVerifyEvidence(ev.fileId || ev._id)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '0.74rem', padding: '4px 8px' }}
+                          >
+                            Verify Checksum
+                          </button>
+
+                          <a
+                            href={`/api/evidence/${ev._id}/download`}
+                            download
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-secondary btn-sm"
+                            style={{ fontSize: '0.74rem', padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
+                          >
+                            <Download size={12} /> Download
+                          </a>
+                        </div>
                       </div>
                       {evidenceVerificationStatus[ev.fileId || ev._id] && (
-                        <div style={{ marginTop: 6, fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-success)' }}>
+                        <div style={{ marginTop: 6, fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-success)', padding: '4px 8px', background: 'rgba(22, 133, 107, 0.1)', borderRadius: 6 }}>
                           {evidenceVerificationStatus[ev.fileId || ev._id]}
                         </div>
                       )}
@@ -2588,6 +3390,127 @@ export default function DashboardPage() {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* ══════════════════════════════════════════════════════════════════
+                PART 3: STAFF CASE INVESTIGATION VIEW (CHRONOLOGICAL PROGRESS)
+                ══════════════════════════════════════════════════════════════════ */}
+            <div className="card" style={{ padding: 18, marginBottom: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <h4 style={{ margin: 0, fontSize: '0.94rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <History size={16} color="var(--color-primary)" /> Investigation & Case Progress
+                </h4>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+                  Real-time Chronological Audit Ledger
+                </span>
+              </div>
+
+              {/* Render dynamic unified chronological history */}
+              {(() => {
+                const events: Array<{ date: Date; action: string; actor: string; desc: string }> = [];
+
+                if (selectedCase.createdAt) {
+                  events.push({
+                    date: new Date(selectedCase.createdAt),
+                    action: 'Complaint Submitted',
+                    actor: selectedCase.isAnonymous ? 'Protected Anonymous Complainant' : (selectedCase.reporterName || 'Complainant'),
+                    desc: `Initial intake recorded with Case ID ${selectedCase.caseId}. Categorized as ${selectedCase.incidentCategory}.`,
+                  });
+                }
+
+                if (selectedCase.assignedTo) {
+                  events.push({
+                    date: new Date(new Date(selectedCase.createdAt).getTime() + 1000 * 60 * 30),
+                    action: 'Inquiry Officer Assigned',
+                    actor: 'Internal Committee Administration',
+                    desc: `Case assigned to Inquiry Officer: ${selectedCase.assignedTo.name} (${selectedCase.assignedTo.designation || selectedCase.assignedTo.role}).`,
+                  });
+                }
+
+                if (selectedCase.inquiryMeetings) {
+                  selectedCase.inquiryMeetings.forEach(m => {
+                    events.push({
+                      date: new Date(m.scheduledAt),
+                      action: 'Inquiry Hearing Scheduled',
+                      actor: 'Internal Committee',
+                      desc: `Hearing '${m.title}' scheduled at ${m.locationOrLink}. Notes: ${m.notes || 'Hearing record logged.'}`,
+                    });
+                  });
+                }
+
+                if (selectedCase.clarificationRequests) {
+                  selectedCase.clarificationRequests.forEach(cr => {
+                    events.push({
+                      date: new Date(cr.requestedAt),
+                      action: 'Clarification Requested',
+                      actor: 'Inquiry Committee',
+                      desc: `Inquiry question sent to complainant: "${cr.question}".`,
+                    });
+                    if (cr.response && cr.respondedAt) {
+                      events.push({
+                        date: new Date(cr.respondedAt),
+                        action: 'Clarification Received',
+                        actor: 'Complainant',
+                        desc: `Complainant provided clarification: "${cr.response}".`,
+                      });
+                    }
+                  });
+                }
+
+                if (selectedCase.auditHistory) {
+                  selectedCase.auditHistory.forEach(a => {
+                    events.push({
+                      date: new Date(a.timestamp),
+                      action: a.action,
+                      actor: a.performedBy || 'Authorized Staff',
+                      desc: a.reason || 'Case record action logged.',
+                    });
+                  });
+                }
+
+                events.sort((a, b) => b.date.getTime() - a.date.getTime()); // Latest first in UI
+
+                if (events.length === 0) {
+                  return <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--color-text-secondary)' }}>No historical events recorded.</p>;
+                }
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {events.map((ev, eIdx) => (
+                      <div
+                        key={eIdx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 12,
+                          padding: '10px 12px',
+                          background: 'var(--color-bg-secondary)',
+                          borderRadius: 8,
+                          borderLeft: '3px solid var(--color-primary)',
+                        }}
+                      >
+                        <div style={{ minWidth: 130 }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', display: 'block' }}>
+                            {ev.date.toLocaleDateString('en-IN')}
+                          </span>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+                            {ev.date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <strong style={{ fontSize: '0.84rem', color: 'var(--color-text-main)' }}>{ev.action}</strong>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>by {ev.actor}</span>
+                          </div>
+                          <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+                            {ev.desc}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

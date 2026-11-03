@@ -185,6 +185,19 @@ export const bookCounsellingSession = async (bookingData: any) => {
   return res.data;
 };
 
+export const getCounsellingRequests = async (params?: { status?: string; caseId?: string; page?: number; limit?: number }) => {
+  const res = await api.get('/api/support/counselling-requests', { params });
+  return res.data;
+};
+
+export const updateCounsellingRequestStatus = async (
+  requestId: string,
+  data: { status?: string; assignedCounsellor?: string; note?: string }
+) => {
+  const res = await api.patch(`/api/support/counselling-requests/${requestId}/status`, data);
+  return res.data;
+};
+
 // ─── PROOF VAULT ──────────────────────────────────────────────────────────────
 export const getProofConsentNotes = async (caseId?: string) => {
   const res = await api.get('/api/proof/consent-notes', { params: { caseId } });
@@ -515,7 +528,6 @@ export const changePassword = async (payload: { currentPassword?: string; newPas
   return res.data;
 };
 
-
 // ─── ANONYMOUS TWO-WAY COMMUNICATION SYSTEM TYPES & APIS ────────────────────
 
 export interface ConversationItem {
@@ -640,6 +652,136 @@ export const getStaffConversations = async (params: Record<string, any> = {}) =>
 
 export const getStaffConversationStats = async () => {
   const res = await api.get('/api/conversations/staff/stats');
+  return res.data;
+};
+
+// ─── CASE INQUIRY PDF REPORT API ─────────────────────────────────────────────
+export const downloadInquiryReportPDF = async (caseId: string) => {
+  const res = await api.get(`/api/cases/${caseId}/inquiry-report-pdf`, {
+    responseType: 'blob',
+  });
+  return res.data;
+};
+
+// ─── IMMEDIATE SAFETY RESPONSE API ──────────────────────────────────────────
+export interface EmergencyNumberResource {
+  code: string;
+  name: string;
+  shortName: string;
+  number: string;
+  telLink: string;
+  description: string;
+  agency: string;
+  operatingHours: string;
+  isPrimary: boolean;
+  category: string;
+  freeCall: boolean;
+  verificationSource: string;
+  lastVerifiedDate: string;
+}
+
+export interface NearbyLocationResource {
+  id: string;
+  city: string;
+  state: string;
+  officialName: string;
+  type: string;
+  category: string;
+  address: string;
+  phone: string;
+  emergencyContact: string;
+  coordinates: { lat: number; lng: number };
+  operatingHours: string;
+  servicesProvided: string[];
+  directionsUrl: string;
+  verificationSource: string;
+  lastVerifiedDate: string;
+  distanceKm?: number;
+  distanceFormatted?: string;
+}
+
+export const getSafetyResources = async () => {
+  const res = await api.get('/api/safety/resources');
+  return res.data;
+};
+
+export const submitSafetyStatus = async (payload: {
+  caseId: string;
+  safetyStatus: 'SAFE' | 'UNSURE' | 'IMMEDIATE_HELP_NEEDED' | 'MONITORED_SCREEN';
+  userResponseText?: string;
+  triggerSource?: string;
+}) => {
+  const res = await api.post('/api/safety/status', payload);
+  return res.data;
+};
+
+export const saveTrustedContact = async (payload: {
+  caseId: string;
+  contactName: string;
+  phoneNumber: string;
+  relationship: string;
+  consentStatus: boolean;
+}) => {
+  const res = await api.post('/api/safety/trusted-contact', payload);
+  return res.data;
+};
+
+export const sendEmergencyAlert = async (payload: {
+  caseId: string;
+  contactId?: string;
+  includeLocation: boolean;
+  userConfirmed: boolean;
+  coordinates?: { lat: number; lng: number };
+}) => {
+  const res = await api.post('/api/safety/send-alert', payload);
+  return res.data;
+};
+
+export const startLocationSharing = async (payload: {
+  caseId: string;
+  durationMinutes: 15 | 60;
+  latitude?: number;
+  longitude?: number;
+  accuracyMeters?: number;
+  consentStatus: boolean;
+}) => {
+  const res = await api.post('/api/safety/location/share', payload);
+  return res.data;
+};
+
+export const stopLocationSharing = async (caseId: string) => {
+  const res = await api.post('/api/safety/location/stop', { caseId });
+  return res.data;
+};
+
+export const getNearbyAssistance = async (params: {
+  lat?: number;
+  lng?: number;
+  city?: string;
+  type?: string;
+}) => {
+  const res = await api.get('/api/safety/nearby', { params });
+  return res.data;
+};
+
+export const getStaffSafetyAlerts = async (params: {
+  status?: string;
+  page?: string | number;
+  limit?: string | number;
+} = {}) => {
+  const res = await api.get('/api/safety/alerts', { params });
+  return res.data;
+};
+
+export const updateStaffSafetyFollowup = async (
+  alertId: string,
+  payload: {
+    humanReviewStatus?: string;
+    staffReviewNotes?: string;
+    assignToSelf?: boolean;
+  }
+) => {
+  const res = await api.patch(`/api/safety/alerts/${alertId}/followup`, payload);
   return res.data;
 };
 

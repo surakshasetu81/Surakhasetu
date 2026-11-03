@@ -66,15 +66,21 @@
 }
 
 /* ============================
-   BASE STYLES
+   BASE STYLES & CURSOR HIERARCHY
    ============================ */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  cursor: default;
+}
 
 html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  cursor: default;
 }
 
 body {
@@ -85,6 +91,132 @@ body {
   min-height: 100vh;
   line-height: 1.6;
   overflow-x: hidden;
+  cursor: default;
+}
+
+/* 1. Global Non-interactive Text and Headers (Default Cursor) */
+h1, h2, h3, h4, h5, h6,
+p, span, div, section, article,
+main, header, footer, aside, nav,
+ul, ol, li, dt, dd, dl,
+table, thead, tbody, tfoot, tr, th, td,
+figure, figcaption, blockquote {
+  cursor: default;
+}
+
+/* 2. Interactive Elements (Pointer Cursor) */
+a,
+a *,
+button,
+button *,
+[role="button"],
+[role="button"] *,
+[role="tab"],
+[role="menuitem"],
+[role="option"],
+[role="switch"],
+select,
+summary,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+input[type="file"],
+.btn,
+.btn *,
+.clickable,
+label[for],
+label:has(input[type="checkbox"]),
+label:has(input[type="radio"]) {
+  cursor: pointer;
+}
+
+/* 3. Text Editing Inputs & Textareas (Text Cursor with Caret) */
+input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="image"]),
+textarea,
+[contenteditable="true"],
+[contenteditable="true"] * {
+  cursor: text !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  caret-color: var(--color-primary);
+}
+
+/* 4. Disabled Controls (Not-Allowed Cursor) */
+button:disabled,
+button[disabled],
+input:disabled,
+input[disabled],
+select:disabled,
+select[disabled],
+textarea:disabled,
+textarea[disabled],
+.btn:disabled,
+.btn[disabled],
+[aria-disabled="true"],
+[aria-disabled="true"] * {
+  cursor: not-allowed !important;
+  pointer-events: auto;
+}
+
+/* 5. Decorative SVGs and Images */
+svg,
+img,
+picture {
+  cursor: default;
+  pointer-events: auto;
+}
+a svg,
+a img,
+button svg,
+button img,
+[role="button"] svg,
+[role="button"] img,
+.btn svg,
+.btn img {
+  cursor: pointer;
+}
+
+/* 6. Selective Text Selection & Caret Suppression */
+button,
+.btn,
+.badge,
+.navbar,
+.nav-link,
+.theme-toggle,
+[role="button"],
+[role="tab"],
+svg,
+img,
+.hero-badge,
+.pill,
+.card-action {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Keep text selection enabled for informational and sensitive user content */
+p,
+h1, h2, h3, h4, h5, h6,
+.selectable-text,
+.case-id,
+.recovery-key,
+.report-content,
+.legal-card,
+.statement-box,
+code,
+pre {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+}
+
+/* Prevent accidental blinking carets on non-editable elements */
+:not(input):not(textarea):not([contenteditable="true"]) {
+  caret-color: transparent;
 }
 
 .hindi-text {

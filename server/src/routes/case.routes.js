@@ -22,6 +22,7 @@ import {
   downloadStaffCaseVaultEvidence,
 } from '../controllers/vault.controller.js';
 import { protect, authorize } from '../middleware/auth.middleware.js';
+import { generateInquiryReportPDF } from '../services/inquiryReportPdfService.js';
 
 const router = express.Router();
 
@@ -54,5 +55,22 @@ router.post('/:caseId/internal-notes', protect, authorize(...WORKFLOW_ROLES), ad
 router.post('/:caseId/inquiry-meetings', protect, authorize(...WORKFLOW_ROLES), scheduleInquiryMeeting);
 router.post('/:caseId/inquiry-findings', protect, authorize(...AUTHORITY_ROLES), recordInquiryFindings);
 router.patch('/:caseId/close-or-reopen', protect, authorize(...AUTHORITY_ROLES), closeOrReopenCase);
+
+// GET /api/cases/:caseId/inquiry-report-pdf - Download official inquiry report PDF (Closed cases only)
+router.get('/:caseId/inquiry-report-pdf', protect, authorize(...READ_ROLES), async (req, res) => {
+  try {
+    const { caseId } = req.params;
+    const { pdfBuffer, filename, reportReferenceNumber } = await generateInquiryReportPDF(caseId, req.user);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('X-Report-Reference', reportReferenceNumber);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Inquiry PDF generation failed:', err);
+    const statusCode = err.message.includes('CLOSED') ? 400 : err.message.includes('not found') ? 404 : 500;
+    res.status(statusCode).json({ success: false, message: err.message });
+  }
+});
 
 export default router;

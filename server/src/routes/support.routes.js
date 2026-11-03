@@ -1,7 +1,9 @@
 import express from 'express';
 import CounsellingBooking from '../models/CounsellingBooking.js';
+import Notification from '../models/Notification.js';
 import { isDatabaseConnected } from '../config/database.js';
 import { generateChatbotResponse, detectLanguage, EMERGENCY_HELPLINES } from '../services/safetyChatbotEngine.js';
+import { protect, authorize } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
@@ -113,30 +115,152 @@ router.post('/book-counselling', async (req, res) => {
   }
 
   try {
-    const { caseId, preferredDate, preferredTimeSlot, preferredLanguage, preferredMode, notes, contactPhoneOrEmail } = req.body;
+    const {
+      caseId,
+      preferredDate,
+      preferredTimeSlot,
+      preferredLanguage,
+      preferredMode,
+      preferredContactMethod,
+      notes,
+      contactPhoneOrEmail,
+    } = req.body;
+
     if (!preferredDate || !preferredTimeSlot) {
       return res.status(400).json({ success: false, message: 'Preferred date and time slot are required' });
     }
 
     const booking = await CounsellingBooking.create({
-      caseId,
+      caseId: caseId ? String(caseId).trim() : undefined,
       preferredDate,
       preferredTimeSlot,
       preferredLanguage: preferredLanguage || 'en',
       preferredMode: preferredMode || 'telephonic',
-      notes,
-      contactPhoneOrEmail,
-      status: 'REQUESTED',
+      preferredContactMethod: preferredContactMethod || 'phone',
+      notes: notes ? String(notes).trim() : '',
+      contactPhoneOrEmail: contactPhoneOrEmail ? String(contactPhoneOrEmail).trim() : '',
+      status: 'Pending',
     });
+
+    // Notify authorized staff and counsellors
+    try {
+      await Notification.create({
+        caseId: caseId || 'GENERAL',
+        title: 'New Confidential Counselling Request',
+        message: `Counselling session requested (${booking.referenceId || booking._id}) for preferred date ${preferredDate} (${preferredTimeSlot}).`,
+        type: 'COUNSELLING_REQUESTED',
+        confidentiality: 'INTERNAL_STAFF',
+        actionLink: '/dashboard',
+      });
+    } catch (notifErr) {
+      console.warn('Counselling notification dispatch notice:', notifErr.message);
+    }
 
     res.status(201).json({
       success: true,
       message: 'Counselling slot request registered. An authorized support counsellor will connect with you during your selected window.',
       bookingId: booking._id,
+      referenceId: booking.referenceId || booking._id,
       status: booking.status,
+      details: {
+        preferredDate: booking.preferredDate,
+        preferredTimeSlot: booking.preferredTimeSlot,
+        preferredMode: booking.preferredMode,
+      },
     });
   } catch (err) {
+    console.error('Failed to record counselling appointment request:', err);
     res.status(500).json({ success: false, message: 'Failed to record counselling appointment request' });
+  }
+});
+
+// Authorized staff roles for accessing and managing counselling requests
+const COUNSELLING_STAFF_ROLES = ['admin', 'staff', 'counsellor', 'committee', 'ic_member', 'case_officer'];
+
+// GET /api/support/counselling-requests - View counselling requests (Authorized staff only)
+router.get('/counselling-requests', protect, authorize(...COUNSELLING_STAFF_ROLES), async (req, res) => {
+  if (!isDatabaseConnected()) {
+    return res.status(503).json({ success: false, message: 'Database connection offline' });
+  }
+
+  try {
+    const { status, caseId, limit = 50, page = 1 } = req.query;
+    const query = {};
+    if (status) query.status = status;
+    if (caseId) query.caseId = String(caseId).trim();
+
+    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    const [requests, total] = await Promise.all([
+      CounsellingBooking.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit, 10))
+        .populate('assignedCounsellor', 'name email role designation')
+        .lean(),
+      CounsellingBooking.countDocuments(query),
+    ]);
+
+    res.json({
+      success: true,
+      count: requests.length,
+      total,
+      requests,
+    });
+  } catch (err) {
+    console.error('Error fetching counselling requests:', err);
+    res.status(500).json({ success: false, message: 'Failed to retrieve counselling requests' });
+  }
+});
+
+// PATCH /api/support/counselling-requests/:id/status - Update counselling request status & notes
+router.patch('/counselling-requests/:id/status', protect, authorize(...COUNSELLING_STAFF_ROLES), async (req, res) => {
+  if (!isDatabaseConnected()) {
+    return res.status(503).json({ success: false, message: 'Database connection offline' });
+  }
+
+  try {
+    const { status, assignedCounsellor, note } = req.body;
+    const validStatuses = ['Pending', 'Assigned', 'Contacted', 'Session Scheduled', 'Completed', 'Cancelled'];
+
+    const updateFields = {};
+    if (status) {
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+        });
+      }
+      updateFields.status = status;
+    }
+
+    if (assignedCounsellor) {
+      updateFields.assignedCounsellor = assignedCounsellor;
+    }
+
+    const booking = await CounsellingBooking.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Counselling request not found' });
+    }
+
+    if (note && String(note).trim()) {
+      booking.staffNotes.push({
+        note: String(note).trim(),
+        author: req.user._id,
+        authorName: req.user.name || 'Authorized Counsellor',
+      });
+    }
+
+    Object.assign(booking, updateFields);
+    await booking.save();
+
+    res.json({
+      success: true,
+      message: 'Counselling request status updated successfully',
+      booking,
+    });
+  } catch (err) {
+    console.error('Error updating counselling status:', err);
+    res.status(500).json({ success: false, message: 'Failed to update counselling request status' });
   }
 });
 

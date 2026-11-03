@@ -6,11 +6,13 @@ import { z } from 'zod';
 import {
   Shield, Upload, CheckCircle2, AlertTriangle, X, FileText, Copy,
   ArrowRight, ArrowLeft, UserCheck, EyeOff, Check,
-  Scale, Lock, Edit2, MessageSquare
+  Scale, Lock, Edit2, MessageSquare, HeartHandshake, PhoneCall, Calendar,
+  ExternalLink, Send
 } from 'lucide-react';
 import {
   submitReport,
   fetchLegalAssessment,
+  bookCounsellingSession,
   type ReportSubmissionPayload
 } from '../services/api';
 import VoiceInputButton from '../components/VoiceInputButton';
@@ -407,9 +409,489 @@ function FileUpload({ files, setFiles }: { files: File[]; setFiles: (f: File[]) 
   );
 }
 
+// ─── COUNSELLING SUPPORT MODAL / SCREEN (POST-SUBMISSION) ─────────────────────
+function PostSubmissionCounsellingModal({
+  caseId,
+  onSkip,
+  onSuccess,
+}: {
+  caseId: string;
+  onSkip: () => void;
+  onSuccess: (refId: string) => void;
+}) {
+  const [showRequestForm, setShowRequestForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [formData, setFormData] = useState({
+    preferredDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    preferredTimeSlot: '10:00 AM - 12:00 PM',
+    preferredMode: 'telephonic',
+    preferredContactMethod: 'phone',
+    contactPhoneOrEmail: '',
+    preferredLanguage: 'en',
+    notes: '',
+  });
+
+  const handleSubmitRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.preferredDate || !formData.preferredTimeSlot) {
+      setError('Please choose a preferred date and time slot.');
+      return;
+    }
+    setError('');
+    setSubmitting(true);
+    try {
+      const res = await bookCounsellingSession({
+        caseId,
+        preferredDate: formData.preferredDate,
+        preferredTimeSlot: formData.preferredTimeSlot,
+        preferredMode: formData.preferredMode,
+        preferredContactMethod: formData.preferredContactMethod,
+        contactPhoneOrEmail: formData.contactPhoneOrEmail,
+        preferredLanguage: formData.preferredLanguage,
+        notes: formData.notes,
+      });
+
+      const refId = res.referenceId || res.bookingId || `COUNS-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+      onSuccess(refId);
+    } catch (err: any) {
+      console.error('Counselling booking failed:', err);
+      setError(err?.response?.data?.message || 'Could not record counselling request. You can also view verified helplines directly.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(10, 22, 40, 0.7)',
+        backdropFilter: 'blur(6px)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+        overflowY: 'auto',
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 16 }}
+        style={{
+          background: 'var(--color-card)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-xl)',
+          maxWidth: 620,
+          width: '100%',
+          boxShadow: 'var(--shadow-xl)',
+          overflow: 'hidden',
+          textAlign: 'left',
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* Header Banner */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, var(--color-soft-pink) 0%, var(--color-card) 100%)',
+            borderBottom: '1px solid var(--color-border)',
+            padding: '24px 28px 20px',
+            position: 'relative',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: 'var(--color-primary)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <HeartHandshake size={24} />
+            </div>
+            <div>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  textTransform: 'uppercase',
+                  fontWeight: 800,
+                  color: 'var(--color-primary)',
+                  letterSpacing: '0.08em',
+                }}
+              >
+                Immediate Emotional & Psychosocial Support
+              </span>
+              <h3 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0, color: 'var(--color-text-main)' }}>
+                You Don't Have to Go Through This Alone
+              </h3>
+            </div>
+          </div>
+          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: 1.55 }}>
+            We understand that reporting an incident can be emotionally difficult. Professional counselling support is available if you need someone to talk to.
+          </p>
+        </div>
+
+        {/* Content Body */}
+        <div style={{ padding: '24px 28px', overflowY: 'auto' }}>
+          {error && (
+            <div
+              className="badge badge-warning"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 16,
+                padding: '10px 14px',
+                width: '100%',
+                boxSizing: 'border-box',
+              }}
+            >
+              <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {!showRequestForm ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Option 1: Connect with a Counsellor */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setShowRequestForm(true)}
+                onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') setShowRequestForm(true); }}
+                style={{
+                  padding: '16px 18px',
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1.5px solid var(--color-primary)',
+                  background: 'var(--color-soft-pink)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  transition: 'transform 0.15s ease',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      background: 'var(--color-primary)',
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Calendar size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: '0 0 2px', fontSize: '0.98rem', fontWeight: 800, color: 'var(--color-text-main)' }}>
+                      Connect with a Counsellor
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+                      Request a 1-on-1 confidential session slot. Your incident details and identity remain strictly protected.
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight size={18} color="var(--color-primary)" style={{ flexShrink: 0 }} />
+              </div>
+
+              {/* Option 2: View Counselling Support */}
+              <a
+                href="/counselling-support"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  padding: '16px 18px',
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-card)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  textDecoration: 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      background: 'rgba(37, 99, 235, 0.1)',
+                      color: '#2563EB',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <PhoneCall size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: '0 0 2px', fontSize: '0.98rem', fontWeight: 800, color: 'var(--color-text-main)' }}>
+                      View Counselling Support
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+                      Browse verified national 24/7 toll-free mental health helplines (Tele-MANAS, KIRAN, NCW) and guides.
+                    </p>
+                  </div>
+                </div>
+                <ExternalLink size={17} color="var(--color-text-secondary)" style={{ flexShrink: 0 }} />
+              </a>
+
+              {/* Option 3: Continue to Track My Case */}
+              <a
+                href={`/track?reportId=${encodeURIComponent(caseId)}`}
+                style={{
+                  padding: '16px 18px',
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-card)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  textDecoration: 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      background: 'rgba(22, 133, 107, 0.1)',
+                      color: 'var(--color-success)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <FileText size={20} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: '0 0 2px', fontSize: '0.98rem', fontWeight: 800, color: 'var(--color-text-main)' }}>
+                      Continue to Track My Case
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+                      Review your complaint status timeline, statutory deadlines, and inquiry proceedings.
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight size={18} color="var(--color-text-secondary)" style={{ flexShrink: 0 }} />
+              </a>
+
+              {/* Option 4: Maybe Later */}
+              <div style={{ paddingTop: 8, display: 'flex', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-text-secondary)',
+                    fontSize: '0.86rem',
+                    fontWeight: 600,
+                    textDecoration: 'underline',
+                    padding: '8px 16px',
+                  }}
+                >
+                  Maybe Later (I'm okay for now)
+                </button>
+              </div>
+
+              {/* Privacy Safeguard Note */}
+              <div
+                style={{
+                  fontSize: '0.76rem',
+                  color: 'var(--color-text-secondary)',
+                  background: 'var(--color-bg-secondary)',
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  marginTop: 6,
+                  lineHeight: 1.45,
+                }}
+              >
+                <Lock size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} />
+                <strong>Confidentiality Guarantee:</strong> Requesting or declining counselling is strictly voluntary and never affects your complaint investigation, statutory rights, or committee priority.
+              </div>
+            </div>
+          ) : (
+            /* Secure Counselling Request Form */
+            <form onSubmit={handleSubmitRequest}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--color-text-main)' }}>
+                    Request a Counselling Session
+                  </h4>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                    Linked to Case ID: <strong style={{ color: 'var(--color-primary)' }}>{caseId}</strong>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRequestForm(false)}
+                  className="btn btn-secondary btn-sm"
+                >
+                  Back
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: 6 }}>
+                    Preferred Date
+                  </label>
+                  <input
+                    type="date"
+                    min={new Date().toISOString().split('T')[0]}
+                    value={formData.preferredDate}
+                    onChange={(e) => setFormData({ ...formData, preferredDate: e.target.value })}
+                    required
+                    className="form-input"
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: 6 }}>
+                    Preferred Time Window
+                  </label>
+                  <select
+                    value={formData.preferredTimeSlot}
+                    onChange={(e) => setFormData({ ...formData, preferredTimeSlot: e.target.value })}
+                    className="form-input"
+                    style={{ width: '100%' }}
+                  >
+                    <option value="09:00 AM - 11:00 AM">09:00 AM - 11:00 AM</option>
+                    <option value="11:00 AM - 01:00 PM">11:00 AM - 01:00 PM</option>
+                    <option value="02:00 PM - 04:00 PM">02:00 PM - 04:00 PM</option>
+                    <option value="04:00 PM - 06:00 PM">04:00 PM - 06:00 PM</option>
+                    <option value="06:00 PM - 08:00 PM">06:00 PM - 08:00 PM</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: 6 }}>
+                    Session Mode
+                  </label>
+                  <select
+                    value={formData.preferredMode}
+                    onChange={(e) => setFormData({ ...formData, preferredMode: e.target.value })}
+                    className="form-input"
+                    style={{ width: '100%' }}
+                  >
+                    <option value="telephonic">Confidential Audio Call</option>
+                    <option value="video">Secure Video Session</option>
+                    <option value="in_person">In-Person Consultation (Campus/Center)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: 6 }}>
+                    Preferred Contact Method
+                  </label>
+                  <select
+                    value={formData.preferredContactMethod}
+                    onChange={(e) => setFormData({ ...formData, preferredContactMethod: e.target.value })}
+                    className="form-input"
+                    style={{ width: '100%' }}
+                  >
+                    <option value="phone">Phone Call / SMS</option>
+                    <option value="email">Email</option>
+                    <option value="platform_message">Secure In-Platform Tracking</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: 6 }}>
+                  Contact Phone or Email (Optional if anonymous)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 9876543210 or confidential@mail.com"
+                  value={formData.contactPhoneOrEmail}
+                  onChange={(e) => setFormData({ ...formData, contactPhoneOrEmail: e.target.value })}
+                  className="form-input"
+                  style={{ width: '100%' }}
+                />
+                <span style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: 4, display: 'block' }}>
+                  Only shared with the assigned licensed counsellor. It will never be disclosed to respondents or employers.
+                </span>
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginBottom: 6 }}>
+                  Any specific notes or concerns you wish to share in advance? (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g., Anxiety management, workplace safety fears, academic stress..."
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  className="form-input"
+                  style={{ width: '100%', resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowRequestForm(false)}
+                  className="btn btn-secondary"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={submitting}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Send size={15} />
+                  {submitting ? 'Submitting Request...' : 'Confirm Counselling Request'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ─── SUCCESS SCREEN COMPONENT ────────────────────────────────────────────────
-function SuccessScreen({ result }: { result: SubmissionResult }) {
+function SuccessScreen({
+  result,
+  requestedCounsellingInForm,
+}: {
+  result: SubmissionResult;
+  requestedCounsellingInForm: boolean;
+}) {
   const [copied, setCopied] = useState<string | null>(null);
+
+  // Counselling modal state
+  const [counsellingModalOpen, setCounsellingModalOpen] = useState(requestedCounsellingInForm);
+  const [counsellingConfirmedRef, setCounsellingConfirmedRef] = useState<string | null>(null);
 
   const copy = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -423,6 +905,18 @@ function SuccessScreen({ result }: { result: SubmissionResult }) {
       animate={{ opacity: 1, scale: 1 }}
       style={{ textAlign: 'center', padding: '16px 0' }}
     >
+      {/* Post-Submission Automatic Counselling Support Prompt */}
+      {counsellingModalOpen && (
+        <PostSubmissionCounsellingModal
+          caseId={result.caseId}
+          onSkip={() => setCounsellingModalOpen(false)}
+          onSuccess={(refId) => {
+            setCounsellingConfirmedRef(refId);
+            setCounsellingModalOpen(false);
+          }}
+        />
+      )}
+
       <div
         style={{
           width: 64,
@@ -444,6 +938,36 @@ function SuccessScreen({ result }: { result: SubmissionResult }) {
       <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.92rem', marginBottom: 28, maxWidth: 540, margin: '0 auto 28px' }}>
         Your report has been securely registered in the system. Save your confidential Report ID and Recovery Key below to track investigation progress.
       </p>
+
+      {/* Counselling Confirmation Banner if requested */}
+      {counsellingConfirmedRef && (
+        <div
+          style={{
+            background: 'var(--color-soft-pink)',
+            border: '1.5px solid var(--color-primary)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+            marginBottom: 24,
+            textAlign: 'left',
+            maxWidth: 600,
+            margin: '0 auto 24px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 12,
+          }}
+        >
+          <HeartHandshake size={24} color="var(--color-primary)" style={{ flexShrink: 0, marginTop: 2 }} />
+          <div>
+            <div style={{ fontWeight: 800, color: 'var(--color-primary)', fontSize: '0.96rem' }}>
+              Counselling Session Request Received
+            </div>
+            <div style={{ fontSize: '0.84rem', color: 'var(--color-text-main)', marginTop: 2 }}>
+              Your confidential request has been recorded under reference ID:{' '}
+              <strong style={{ color: 'var(--color-primary)' }}>{counsellingConfirmedRef}</strong>. An authorized support counsellor will connect with you during your chosen window.
+            </div>
+          </div>
+        </div>
+      )}
 
       <div
         style={{
@@ -527,6 +1051,25 @@ function SuccessScreen({ result }: { result: SubmissionResult }) {
         </span>
       </div>
 
+      {/* Safety & Counselling Options Box */}
+      <div style={{ background: 'var(--color-bg-secondary)', border: '1.5px solid var(--color-primary)', borderRadius: 'var(--radius-lg)', padding: '20px', maxWidth: 600, margin: '0 auto 24px', textAlign: 'left' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <Shield size={22} color="var(--color-primary)" />
+          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--color-primary)' }}>Your Safety Comes First</h3>
+        </div>
+        <p style={{ margin: '0 0 14px', fontSize: '0.86rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+          Are you safe right now? Access emergency calling (112 / 181), trusted-contact alerts, verified nearby One Stop Centres, and evidence protection.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          <a href={`/safety?caseId=${encodeURIComponent(result.caseId)}`} className="btn btn-primary" style={{ fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Shield size={16} /> Immediate Safety Check & Options
+          </a>
+          <a href={`/safety?caseId=${encodeURIComponent(result.caseId)}&mode=emergency`} className="btn" style={{ background: '#D92D35', color: '#FFF', fontWeight: 800, border: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <AlertTriangle size={16} /> Emergency Assistance Mode
+          </a>
+        </div>
+      </div>
+
       <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
         <a
           href={`/track?reportId=${encodeURIComponent(result.caseId)}&recoveryKey=${encodeURIComponent(result.recoveryCode)}&tab=conversation`}
@@ -536,11 +1079,11 @@ function SuccessScreen({ result }: { result: SubmissionResult }) {
         >
           <MessageSquare size={16} /> Open Secure Case Conversation
         </a>
-        <a
-          href={`/track?reportId=${encodeURIComponent(result.caseId)}&recoveryKey=${encodeURIComponent(result.recoveryCode)}`}
-          className="btn btn-secondary"
-        >
-          Track Case Status
+        <a href={`/track?reportId=${encodeURIComponent(result.caseId)}`} className="btn btn-secondary">
+          Track This Report Now
+        </a>
+        <a href="/counselling-support" className="btn btn-secondary">
+          Counselling & Support Resources
         </a>
         <a href="/" className="btn btn-secondary">
           Return Home
@@ -1667,7 +2210,10 @@ export default function ReportPage() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <SuccessScreen result={result} />
+                <SuccessScreen
+                  result={result}
+                  requestedCounsellingInForm={step3Data.supportRequired.includes('counselling')}
+                />
               </motion.div>
             )}
           </AnimatePresence>

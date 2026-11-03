@@ -13,6 +13,13 @@ import StaffLoginPage from './pages/StaffLoginPage';
 import DashboardPage from './pages/DashboardPage';
 import CounsellingSupport from './pages/CounsellingSupport';
 import StaticPolicyPage from './pages/StaticPolicyPage';
+import SafetyPage from './pages/SafetyPage';
+import EmotionalSupportDetailPage from './pages/support/EmotionalSupportDetailPage';
+import WorkplaceSupportDetailPage from './pages/support/WorkplaceSupportDetailPage';
+import LegalGuidanceDetailPage from './pages/support/LegalGuidanceDetailPage';
+import EmotionalWellbeingGuidePage from './pages/support/guides/EmotionalWellbeingGuidePage';
+import WorkplacePreparednessGuidePage from './pages/support/guides/WorkplacePreparednessGuidePage';
+import LegalGuidanceFullGuidePage from './pages/support/guides/LegalGuidanceFullGuidePage';
 
 function NotFoundPage() {
   return (
@@ -44,9 +51,17 @@ export default function App() {
             <Route path="/legal" element={<LegalPage />} />
             <Route path="/legal-framework" element={<LegalPage />} />
             
-            {/* Counselling & Support */}
+            {/* Counselling & Support Routes */}
+            <Route path="/safety" element={<SafetyPage />} />
+            <Route path="/safety-response" element={<SafetyPage />} />
             <Route path="/counselling-support" element={<CounsellingSupport />} />
             <Route path="/counselling" element={<CounsellingSupport />} />
+            <Route path="/support/emotional" element={<EmotionalSupportDetailPage />} />
+            <Route path="/support/workplace" element={<WorkplaceSupportDetailPage />} />
+            <Route path="/support/legal" element={<LegalGuidanceDetailPage />} />
+            <Route path="/support/guides/emotional-wellbeing" element={<EmotionalWellbeingGuidePage />} />
+            <Route path="/support/guides/workplace-preparedness" element={<WorkplacePreparednessGuidePage />} />
+            <Route path="/support/guides/legal-guidance" element={<LegalGuidanceFullGuidePage />} />
             
             {/* Evidence & Proof Vault */}
             <Route path="/proof-vault" element={<ProofVaultPage />} />

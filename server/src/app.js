@@ -31,6 +31,7 @@ import assistantRoutes from './routes/assistant.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import conversationRoutes from './routes/conversation.routes.js';
+import safetyRoutes from './routes/safety.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -142,6 +143,7 @@ const routeList = [
   ['/admin', adminRoutes],
   ['/notifications', notificationRoutes],
   ['/conversations', conversationRoutes],
+  ['/safety', safetyRoutes],
 ];
 
 for (const [prefix, router] of routeList) {

@@ -1267,6 +1267,38 @@ export const closeOrReopenCase = async (req, res) => {
     const newStatus = action === 'CLOSE' ? 'closed' : 'reopened';
     foundCase.status = newStatus;
 
+    if (action === 'CLOSE') {
+      const reportRef = `INQ-REP-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      foundCase.closureDetails = {
+        closedAt: new Date(),
+        closedBy: req.user._id,
+        closedByName: req.user.name,
+        closedByRole: req.user.role,
+        closureRemarks: reason.trim(),
+        finalOrderRef: foundCase.inquiryFindings?.formalOrderNumber || `ORD-${caseId}`,
+        reportReferenceNumber: reportRef,
+      };
+
+      if (!foundCase.closureHistory) foundCase.closureHistory = [];
+      foundCase.closureHistory.push({
+        closedAt: new Date(),
+        closedBy: req.user._id,
+        closedByName: req.user.name,
+        closedByRole: req.user.role,
+        closureRemarks: reason.trim(),
+        finalOrderRef: foundCase.inquiryFindings?.formalOrderNumber || `ORD-${caseId}`,
+        reportReferenceNumber: reportRef,
+      });
+    } else if (action === 'REOPEN') {
+      if (foundCase.closureHistory && foundCase.closureHistory.length > 0) {
+        const lastClosure = foundCase.closureHistory[foundCase.closureHistory.length - 1];
+        lastClosure.reopenedAt = new Date();
+        lastClosure.reopenedBy = req.user._id;
+        lastClosure.reopenedByName = req.user.name;
+        lastClosure.reopeningReason = reason.trim();
+      }
+    }
+
     foundCase.auditHistory.push({
       action: action === 'CLOSE' ? 'CASE_CLOSED' : 'CASE_REOPENED',
       reason: reason.trim(),

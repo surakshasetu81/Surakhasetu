@@ -178,4 +178,23 @@ router.get('/:evidenceId/verify', protect, authorize('admin', 'staff'), async (r
   }
 });
 
+// GET /api/evidence/:evidenceId/download - Authorized staff download of evidence file
+router.get('/:evidenceId/download', protect, authorize('admin', 'staff', 'committee', 'ic_member', 'case_officer', 'auditor'), async (req, res) => {
+  try {
+    const evidence = await Evidence.findById(req.params.evidenceId).select('+path');
+    if (!evidence) {
+      return res.status(404).json({ success: false, message: 'Evidence file not found' });
+    }
+
+    if (!evidence.path || !fs.existsSync(evidence.path)) {
+      return res.status(404).json({ success: false, message: 'Evidence physical file not located in secure storage' });
+    }
+
+    res.download(evidence.path, evidence.originalName);
+  } catch (err) {
+    console.error('Evidence download error:', err);
+    res.status(500).json({ success: false, message: 'Failed to download evidence file' });
+  }
+});
+
 export default router;
