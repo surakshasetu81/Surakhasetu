@@ -172,7 +172,7 @@ export default function CounsellingSupport() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
               gap: 36,
               alignItems: 'center',
             }}
@@ -562,7 +562,7 @@ export default function CounsellingSupport() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, marginTop: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: 24, marginTop: 24 }}>
               <div style={{ background: 'var(--color-bg-secondary)', padding: '20px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
                 <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 8, color: 'var(--color-text-main)' }}>
                   1. Recognizing Distress
@@ -643,7 +643,7 @@ export default function CounsellingSupport() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, marginTop: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: 24, marginTop: 24 }}>
               <div style={{ background: 'var(--color-bg-secondary)', padding: '20px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
                 <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 8, color: 'var(--color-text-main)' }}>
                   1. Identifying Workplace Concerns
@@ -718,7 +718,7 @@ export default function CounsellingSupport() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, marginTop: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: 24, marginTop: 24 }}>
               <div style={{ background: 'var(--color-bg-secondary)', padding: '20px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
                 <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 8, color: 'var(--color-text-main)' }}>
                   1. POSH Act Protections
@@ -834,7 +834,7 @@ export default function CounsellingSupport() {
 
           {/* Resources Grid */}
           {filteredResources.length > 0 ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 24 }}>
               {filteredResources.map(resource => (
                 <div
                   key={resource.id}

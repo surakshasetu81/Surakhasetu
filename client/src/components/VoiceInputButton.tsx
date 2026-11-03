@@ -591,7 +591,9 @@ export default function VoiceInputButton({
             style={{
               maxWidth: 480,
               width: '100%',
-              padding: 24,
+              padding: 'clamp(16px, 4vw, 24px)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
               background: 'var(--color-card)',
               borderRadius: 'var(--radius-lg)',
               boxShadow: 'var(--shadow-xl)',

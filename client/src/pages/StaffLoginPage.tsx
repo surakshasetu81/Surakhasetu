@@ -49,7 +49,7 @@ export default function StaffLoginPage() {
   return (
     <main style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'var(--color-bg)', padding: '24px',
+      background: 'var(--color-bg)', padding: 'clamp(16px, 4vw, 24px)',
     }}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -81,7 +81,7 @@ export default function StaffLoginPage() {
           </p>
         </div>
 
-        <div className="card" style={{ padding: '32px' }}>
+        <div className="card" style={{ padding: 'clamp(20px, 5vw, 32px)' }}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>
               <label className="form-label">Email Address</label>
@@ -119,6 +119,8 @@ export default function StaffLoginPage() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 8,
             }}>
               <div>
                 <div style={{ fontWeight: 700, color: 'var(--color-primary)', marginBottom: 2 }}>Demo Admin Credentials:</div>

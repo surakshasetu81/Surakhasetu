@@ -1280,7 +1280,7 @@ export default function ProofVaultPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="card"
-                style={{ width: '100%', maxWidth: 540, padding: 32, borderRadius: 20, boxShadow: 'var(--shadow-xl)' }}
+                style={{ width: '100%', maxWidth: 'min(540px, 95vw)', maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(18px, 4vw, 32px)', borderRadius: 20, boxShadow: 'var(--shadow-xl)' }}
               >
                 <div style={{ textAlign: 'center', marginBottom: 24 }}>
                   <div style={{
@@ -1413,7 +1413,7 @@ export default function ProofVaultPage() {
           background: 'rgba(0,0,0,0.5)', zIndex: 110,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <div className="card" style={{ width: '100%', maxWidth: 480, padding: 24 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 'min(480px, 95vw)', maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(16px, 4vw, 24px)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Link size={20} color="var(--color-primary)" />

@@ -670,7 +670,7 @@ export default function TrackPage() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))',
                   gap: 14,
                 }}
               >
@@ -912,7 +912,7 @@ export default function TrackPage() {
                   <div
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
                       gap: 20,
                       alignItems: 'center',
                       marginBottom: 20,
@@ -974,7 +974,7 @@ export default function TrackPage() {
                     <div
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
                         gap: 12,
                         padding: '12px 16px',
                         borderRadius: 10,
@@ -1234,7 +1234,7 @@ export default function TrackPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-border)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-border)' }}>
                 <div>
                   <span style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>Internal Target Resolution Date:</span>
                   <p style={{ margin: '2px 0 0', fontWeight: 700, fontSize: '0.88rem' }}>

@@ -251,7 +251,7 @@ function KeyFeatures() {
             A complete platform designed for safety, privacy, and dignity at every step.
           </p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 24 }}>
           {features.map((f, i) => (
             <motion.div
               key={f.title}
@@ -420,7 +420,7 @@ function CounsellingSupportCTA() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
               gap: 28,
               alignItems: 'center',
             }}

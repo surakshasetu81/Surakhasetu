@@ -28,7 +28,7 @@ export default function Footer() {
   return (
     <footer className="footer" role="contentinfo">
       <div className="container">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 40, marginBottom: 48 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 'clamp(24px, 4vw, 40px)', marginBottom: 48 }}>
           {/* Brand */}
           <div>
             <Link to="/" style={{ display: 'inline-block', marginBottom: 16 }} aria-label="Suraksha Setu Home">

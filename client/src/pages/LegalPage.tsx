@@ -673,7 +673,7 @@ export default function LegalPage() {
             Access verified statutory enactments and official gazettes directly from government ministry repositories:
           </p>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 10 }}>
             <a
               href="https://www.wcd.gov.in/documents/legislations"
               target="_blank"

@@ -945,7 +945,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ─── TAB NAVIGATION ─────────────────────────────────────────────────── */}
-        <div style={{ maxWidth: 1400, margin: '12px auto 0', display: 'flex', gap: 8, borderTop: '1px solid var(--color-border)', paddingTop: 10 }}>
+        <div className="tabs-scroll-container" style={{ maxWidth: 1400, margin: '12px auto 0', borderTop: '1px solid var(--color-border)', paddingTop: 10 }}>
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
@@ -1123,7 +1123,7 @@ export default function DashboardPage() {
             {/* 11 KPI Cards Grid */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
               gap: 16,
               marginBottom: 28,
             }}>
@@ -1914,7 +1914,7 @@ export default function DashboardPage() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))',
                   gap: 14,
                   marginBottom: 20,
                 }}
@@ -1960,7 +1960,7 @@ export default function DashboardPage() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))',
                 gap: 20,
                 alignItems: 'start',
               }}
@@ -2164,11 +2164,10 @@ export default function DashboardPage() {
         }}>
           <div style={{
             width: '100%',
-            maxWidth: 780,
+            maxWidth: 'min(780px, 100vw)', padding: 'clamp(18px, 4vw, 32px)',
             background: 'var(--color-card)',
             height: '100%',
             overflowY: 'auto',
-            padding: '28px 32px',
             boxShadow: '-8px 0 30px rgba(0,0,0,0.2)',
           }}>
             {/* Drawer Header */}
@@ -2599,9 +2598,9 @@ export default function DashboardPage() {
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.5)', zIndex: 110,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px',
         }}>
-          <div className="card" style={{ width: '100%', maxWidth: 500, padding: 24 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 'min(500px, 95vw)', maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(16px, 4vw, 24px)' }}>
             <h3 style={{ margin: '0 0 14px', fontSize: '1.2rem', fontWeight: 800 }}>Provision Staff Account</h3>
             {provisionError && <div style={{ padding: 10, background: 'rgba(217, 45, 53, 0.1)', color: '#D92D35', borderRadius: 8, fontSize: '0.84rem', marginBottom: 12 }}>{provisionError}</div>}
             {provisionSuccess && <div style={{ padding: 10, background: 'rgba(22, 133, 107, 0.12)', color: '#16856B', borderRadius: 8, fontSize: '0.84rem', marginBottom: 12 }}>{provisionSuccess}</div>}
@@ -2710,7 +2709,7 @@ export default function DashboardPage() {
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.5)', zIndex: 110,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px',
         }}>
           <div className="card" style={{ width: '100%', maxWidth: 500, padding: 24 }}>
             <h3 style={{ margin: '0 0 14px', fontSize: '1.2rem', fontWeight: 800 }}>Schedule POSH Inquiry Proceeding</h3>
@@ -2788,9 +2787,9 @@ export default function DashboardPage() {
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.5)', zIndex: 110,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px',
         }}>
-          <div className="card" style={{ width: '100%', maxWidth: 560, padding: 24 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 'min(560px, 95vw)', maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(16px, 4vw, 24px)' }}>
             <h3 style={{ margin: '0 0 14px', fontSize: '1.2rem', fontWeight: 800 }}>Record Formal Inquiry Findings & Recommendations</h3>
             <form onSubmit={handleRecordFindings}>
               <div style={{ marginBottom: 12 }}>
@@ -2870,9 +2869,9 @@ export default function DashboardPage() {
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.5)', zIndex: 110,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px',
         }}>
-          <div className="card" style={{ width: '100%', maxWidth: 480, padding: 24 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 'min(480px, 95vw)', maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(16px, 4vw, 24px)' }}>
             <h3 style={{ margin: '0 0 14px', fontSize: '1.2rem', fontWeight: 800 }}>
               {closureAction === 'CLOSE' ? 'Close Case File' : 'Reopen Case File'}
             </h3>
@@ -2920,9 +2919,9 @@ export default function DashboardPage() {
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.5)', zIndex: 110,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px',
         }}>
-          <div className="card" style={{ width: '100%', maxWidth: 480, padding: 24 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 'min(480px, 95vw)', maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(16px, 4vw, 24px)' }}>
             <h3 style={{ margin: '0 0 14px', fontSize: '1.2rem', fontWeight: 800 }}>
               Request Information from Complainant
             </h3>
@@ -2983,9 +2982,9 @@ export default function DashboardPage() {
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.5)', zIndex: 110,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px',
         }}>
-          <div className="card" style={{ width: '100%', maxWidth: 480, padding: 24 }}>
+          <div className="card" style={{ width: '100%', maxWidth: 'min(480px, 95vw)', maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(16px, 4vw, 24px)' }}>
             <h3 style={{ margin: '0 0 14px', fontSize: '1.2rem', fontWeight: 800 }}>Override Case Priority</h3>
 
             <div style={{ marginBottom: 14 }}>
@@ -3042,7 +3041,7 @@ export default function DashboardPage() {
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.5)', zIndex: 110,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px',
         }}>
           <div className="card" style={{ width: '100%', maxWidth: 500, padding: 24 }}>
             <h3 style={{ margin: '0 0 14px', fontSize: '1.2rem', fontWeight: 800, color: '#D92D35' }}>
@@ -3115,7 +3114,7 @@ export default function DashboardPage() {
           background: 'rgba(0,0,0,0.6)', zIndex: 120,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <div className="card" style={{ width: '100%', maxWidth: 450, padding: 28, boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
+          <div className="card" style={{ width: '100%', maxWidth: 'min(450px, 95vw)', maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(18px, 4vw, 28px)', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <Key size={22} color="var(--color-primary)" />
               <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Set Up Your Secure Password</h3>

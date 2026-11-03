@@ -82,8 +82,8 @@ export default function StaticPolicyPage() {
   }
 
   return (
-    <main style={{ minHeight: '80vh', padding: '48px 20px', background: 'var(--color-bg)' }}>
-      <div style={{ maxWidth: 780, margin: '0 auto' }}>
+    <main style={{ minHeight: '80vh', padding: 'clamp(24px, 5vw, 48px) clamp(12px, 3vw, 20px)', background: 'var(--color-bg)' }}>
+      <div style={{ maxWidth: 780, margin: '0 auto', width: '100%' }}>
         <Link
           to="/"
           style={{
@@ -100,7 +100,7 @@ export default function StaticPolicyPage() {
           <ArrowLeft size={16} /> Return to Home
         </Link>
 
-        <div className="card" style={{ padding: '36px' }}>
+        <div className="card" style={{ padding: 'clamp(18px, 4vw, 36px)' }}>
           <div style={{
             display: 'inline-block',
             padding: '4px 12px',

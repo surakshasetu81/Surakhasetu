@@ -804,7 +804,7 @@ export default function ReportPage() {
                 </div>
 
                 <form onSubmit={handleStep1}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 24 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 16, marginBottom: 24 }}>
                     {/* Option A: Anonymous */}
                     <div
                       role="button"
@@ -933,7 +933,7 @@ export default function ReportPage() {
                         )}
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 14 }}>
                         <div>
                           <label style={{ display: 'block', fontWeight: 700, fontSize: '0.84rem', marginBottom: 6 }}>
                             Email Address <span style={{ color: 'var(--color-primary)' }}>*</span>
@@ -1063,7 +1063,7 @@ export default function ReportPage() {
                   </div>
 
                   {/* Date & Location Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 16 }}>
                     <div>
                       <label htmlFor="incident-date-input" style={{ display: 'block', fontWeight: 700, fontSize: '0.86rem', marginBottom: 6 }}>
                         Approximate Date of Incident
@@ -1093,7 +1093,7 @@ export default function ReportPage() {
                   </div>
 
                   {/* Organization Name & Optional Employee/College ID Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 16 }}>
                     <div>
                       <label htmlFor="organization-details-input" style={{ display: 'block', fontWeight: 700, fontSize: '0.86rem', marginBottom: 6 }}>
                         Organization / College Name (Optional)
@@ -1193,7 +1193,7 @@ export default function ReportPage() {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid var(--color-border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, paddingTop: 16, borderTop: '1px solid var(--color-border)' }}>
                     <button type="button" onClick={prevStep} className="btn btn-secondary">
                       <ArrowLeft size={16} /> Back
                     </button>
@@ -1377,7 +1377,7 @@ export default function ReportPage() {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid var(--color-border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, paddingTop: 16, borderTop: '1px solid var(--color-border)' }}>
                     <button type="button" onClick={prevStep} className="btn btn-secondary">
                       <ArrowLeft size={16} /> Back
                     </button>
@@ -1472,7 +1472,7 @@ export default function ReportPage() {
                       </button>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: 12, marginBottom: 12 }}>
                       <div>
                         <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Category:</span>
                         <p style={{ fontWeight: 700, fontSize: '0.88rem', margin: '2px 0 0' }}>
@@ -1632,7 +1632,7 @@ export default function ReportPage() {
                 )}
 
                 {/* Actions */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid var(--color-border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, paddingTop: 16, borderTop: '1px solid var(--color-border)' }}>
                   <button type="button" onClick={prevStep} className="btn btn-secondary" disabled={submitting}>
                     <ArrowLeft size={16} /> Back
                   </button>

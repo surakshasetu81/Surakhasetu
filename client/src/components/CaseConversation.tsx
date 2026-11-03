@@ -746,6 +746,7 @@ export default function CaseConversation({
             rows={2}
             style={{
               flex: 1,
+              minWidth: 0,
               resize: 'none',
               padding: '10px 14px',
               borderRadius: 10,
@@ -798,8 +799,10 @@ export default function CaseConversation({
               background: 'var(--color-card)',
               borderRadius: 'var(--radius-lg)',
               border: '1px solid var(--color-border)',
-              padding: '24px',
-              maxWidth: 520,
+              padding: 'clamp(16px, 4vw, 24px)',
+              maxWidth: 'min(520px, 95vw)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
               width: '100%',
               boxShadow: 'var(--shadow-lg)',
             }}

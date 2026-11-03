@@ -150,7 +150,7 @@ export default function Navbar() {
               type="button"
               aria-label="Quickly leave this page"
             >
-              <ExternalLink size={14} /> Quick Exit
+              <ExternalLink size={14} /> <span className="quick-exit-desktop">Quick Exit</span><span className="quick-exit-mobile">Exit</span>
             </button>
 
             {/* Mobile / Tablet Hamburger Toggle */}
