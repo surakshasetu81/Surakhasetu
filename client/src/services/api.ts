@@ -501,6 +501,134 @@ export const changePassword = async (payload: { currentPassword?: string; newPas
   return res.data;
 };
 
+
+// ─── ANONYMOUS TWO-WAY COMMUNICATION SYSTEM TYPES & APIS ────────────────────
+
+export interface ConversationItem {
+  _id: string;
+  caseId: string;
+  incidentCategory: string;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  status: 'active' | 'awaiting_complainant' | 'awaiting_staff' | 'evidence_requested' | 'closed' | 'archived';
+  isAnonymous: boolean;
+  complainantPseudonym: string;
+  assignedStaffName: string;
+  unreadStaffCount: number;
+  unreadComplainantCount: number;
+  evidenceRequested?: boolean;
+  evidenceRequestDetails?: {
+    requestedAt?: string;
+    instructions?: string;
+    isFulfilled?: boolean;
+  };
+  lastMessageAt: string;
+  lastMessagePreview?: string;
+}
+
+export interface MessageAttachment {
+  originalName: string;
+  filename: string;
+  fileUrl: string;
+  sizeBytes: number;
+  mimeType: string;
+  evidenceId?: string;
+}
+
+export interface MessageItem {
+  _id: string;
+  senderType: 'complainant' | 'staff' | 'admin' | 'system';
+  senderDisplayName: string;
+  content: string;
+  messageType: 'text' | 'evidence_request' | 'evidence_submission' | 'case_update';
+  attachments?: MessageAttachment[];
+  createdAt: string;
+  isRead: boolean;
+  isOwnMessage?: boolean;
+}
+
+export const authConversation = async (caseId: string, recoveryCode: string) => {
+  const res = await api.post('/api/conversations/auth', { caseId, recoveryCode });
+  return res.data;
+};
+
+export const getConversation = async (caseId: string, caseToken?: string) => {
+  const headers: Record<string, string> = {};
+  if (caseToken) {
+    headers['x-case-token'] = caseToken;
+  }
+  const res = await api.get(`/api/conversations/${encodeURIComponent(caseId)}`, { headers });
+  return res.data;
+};
+
+export const sendConversationMessage = async (
+  caseId: string,
+  content: string,
+  messageType = 'text',
+  attachments: MessageAttachment[] = [],
+  caseToken?: string
+) => {
+  const headers: Record<string, string> = {};
+  if (caseToken) {
+    headers['x-case-token'] = caseToken;
+  }
+  const res = await api.post(
+    `/api/conversations/${encodeURIComponent(caseId)}/messages`,
+    { content, messageType, attachments },
+    { headers }
+  );
+  return res.data;
+};
+
+export const markConversationRead = async (caseId: string, caseToken?: string) => {
+  const headers: Record<string, string> = {};
+  if (caseToken) {
+    headers['x-case-token'] = caseToken;
+  }
+  const res = await api.patch(
+    `/api/conversations/${encodeURIComponent(caseId)}/read`,
+    {},
+    { headers }
+  );
+  return res.data;
+};
+
+export const uploadConversationAttachment = async (caseId: string, file: File, caseToken?: string) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const headers: Record<string, string> = {
+    'Content-Type': 'multipart/form-data',
+  };
+  if (caseToken) {
+    headers['x-case-token'] = caseToken;
+  }
+  const res = await api.post(
+    `/api/conversations/${encodeURIComponent(caseId)}/attachments`,
+    formData,
+    { headers }
+  );
+  return res.data;
+};
+
+export const requestConversationEvidence = async (caseId: string, instructions: string) => {
+  const res = await api.post(`/api/conversations/${encodeURIComponent(caseId)}/request-evidence`, { instructions });
+  return res.data;
+};
+
+export const updateConversationStatus = async (caseId: string, status: string) => {
+  const res = await api.patch(`/api/conversations/${encodeURIComponent(caseId)}/status`, { status });
+  return res.data;
+};
+
+export const getStaffConversations = async (params: Record<string, any> = {}) => {
+  const res = await api.get('/api/conversations/staff/list', { params });
+  return res.data;
+};
+
+export const getStaffConversationStats = async () => {
+  const res = await api.get('/api/conversations/staff/stats');
+  return res.data;
+};
+
 export default api;
 
 

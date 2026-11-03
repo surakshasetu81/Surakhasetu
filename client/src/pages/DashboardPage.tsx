@@ -3,8 +3,10 @@ import {
   LayoutDashboard, FileText, Users, Clock, RefreshCw,
   ShieldAlert, ShieldCheck, Scale, History, AlertTriangle,
   Lock, Search, UserPlus, UserCheck, UserX, Key, Calendar,
-  Bell, X, FolderOpen, Shield, HelpCircle, CheckCircle2
+  Bell, X, FolderOpen, Shield, HelpCircle, CheckCircle2, MessageSquare
 } from 'lucide-react';
+import CaseConversation from '../components/CaseConversation';
+import { getStaffConversations, getStaffConversationStats, type ConversationItem } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import {
@@ -212,7 +214,15 @@ export default function DashboardPage() {
   const { user, loading, logout } = useAuth();
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'cases' | 'staff' | 'overdue' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'cases' | 'communications' | 'staff' | 'overdue' | 'audit'>('overview');
+  const [commConversations, setCommConversations] = useState<ConversationItem[]>([]);
+  const [commSelectedCaseId, setCommSelectedCaseId] = useState<string | null>(null);
+  const [commStats, setCommStats] = useState<any>(null);
+  const [commUnreadCount, setCommUnreadCount] = useState<number>(0);
+  const [commSearch, setCommSearch] = useState('');
+  const [commPriorityFilter, setCommPriorityFilter] = useState('all');
+  const [commStatusFilter, setCommStatusFilter] = useState('all');
+  const [loadingComm, setLoadingComm] = useState(false);
 
   // Metrics State
   const [metrics, setMetrics] = useState<DashboardMetrics>({
@@ -416,6 +426,34 @@ export default function DashboardPage() {
     }
   };
 
+  // Load Communications
+  const loadCommunications = async () => {
+    setLoadingComm(true);
+    try {
+      const [listRes, statsRes] = await Promise.allSettled([
+        getStaffConversations({
+          priority: commPriorityFilter !== 'all' ? commPriorityFilter : undefined,
+          status: commStatusFilter !== 'all' ? commStatusFilter : undefined,
+          search: commSearch || undefined,
+        }),
+        getStaffConversationStats(),
+      ]);
+
+      if (listRes.status === 'fulfilled' && listRes.value?.conversations) {
+        setCommConversations(listRes.value.conversations);
+        const totalUnread = listRes.value.conversations.reduce((acc: number, c: any) => acc + (c.unreadStaffCount || 0), 0);
+        setCommUnreadCount(totalUnread);
+      }
+      if (statsRes.status === 'fulfilled' && statsRes.value?.stats) {
+        setCommStats(statsRes.value.stats);
+      }
+    } catch {
+      // Communications fetch handled gracefully
+    } finally {
+      setLoadingComm(false);
+    }
+  };
+
   // Load Audit Logs
   const loadAuditLogs = async () => {
     if (!isMainAdmin && !isAuditor) return;
@@ -437,12 +475,15 @@ export default function DashboardPage() {
       loadCases();
       loadStaff();
       loadNotifications();
+      loadCommunications();
     }
   }, [user, page, statusFilter, priorityFilter, overdueOnlyFilter]);
 
   useEffect(() => {
     if (activeTab === 'audit') {
       loadAuditLogs();
+    } else if (activeTab === 'communications') {
+      loadCommunications();
     }
   }, [activeTab, auditPage]);
 
@@ -823,6 +864,7 @@ export default function DashboardPage() {
                       onClick={async () => {
                         await markAllNotificationsRead();
                         loadNotifications();
+      loadCommunications();
                       }}
                       style={{ fontSize: '0.74rem', color: 'var(--color-primary)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
                     >
@@ -842,6 +884,7 @@ export default function DashboardPage() {
                             if (!n.read) {
                               await markNotificationRead(n._id);
                               loadNotifications();
+      loadCommunications();
                             }
                           }}
                           style={{
@@ -882,6 +925,7 @@ export default function DashboardPage() {
                 loadCases();
                 loadStaff();
                 loadNotifications();
+      loadCommunications();
               }}
               className="btn btn-secondary btn-sm"
               title="Refresh Live Data"
@@ -922,6 +966,41 @@ export default function DashboardPage() {
             <LayoutDashboard size={15} /> Overview & KPIs
           </button>
 
+          <button
+            type="button"
+            onClick={() => setActiveTab('communications')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: activeTab === 'communications' ? 'var(--color-primary)' : 'transparent',
+              color: activeTab === 'communications' ? '#FFF' : 'var(--color-text-secondary)',
+              fontWeight: 700,
+              fontSize: '0.86rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+            id="tab-communications-btn"
+          >
+            <MessageSquare size={15} /> Secure Communications
+            {commUnreadCount > 0 && (
+              <span
+                style={{
+                  background: activeTab === 'communications' ? '#FFF' : 'var(--color-primary)',
+                  color: activeTab === 'communications' ? 'var(--color-primary)' : '#FFF',
+                  fontSize: '0.7rem',
+                  fontWeight: 800,
+                  padding: '1px 6px',
+                  borderRadius: 999,
+                  marginLeft: 2,
+                }}
+              >
+                {commUnreadCount}
+              </span>
+            )}
+          </button>
           <button
             type="button"
             onClick={() => setActiveTab('cases')}
@@ -1806,6 +1885,268 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+        {/* ─── TAB 6: SECURE COMMUNICATIONS ────────────────────────────────────── */}
+        {activeTab === 'communications' && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '0 0 4px', color: 'var(--color-text-main)' }}>
+                  Secure Case Communications
+                </h2>
+                <p style={{ margin: 0, fontSize: '0.86rem', color: 'var(--color-text-secondary)' }}>
+                  Confidential two-way messaging with complainants. Complainant identity is strictly shielded while maintaining complete auditability.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => loadCommunications()}
+                disabled={loadingComm}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <RefreshCw size={13} className={loadingComm ? 'spin-animation' : ''} />
+                Refresh Channels
+              </button>
+            </div>
+
+            {commStats && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: 14,
+                  marginBottom: 20,
+                }}
+              >
+                <div className="card" style={{ padding: '14px 18px' }}>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Active Channels
+                  </div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--color-text-main)', marginTop: 4 }}>
+                    {commStats.totalConversations}
+                  </div>
+                </div>
+
+                <div className="card" style={{ padding: '14px 18px' }}>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--color-primary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Unread Complainant Messages
+                  </div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--color-primary)', marginTop: 4 }}>
+                    {commStats.unreadConversations}
+                  </div>
+                </div>
+
+                <div className="card" style={{ padding: '14px 18px' }}>
+                  <div style={{ fontSize: '0.74rem', color: '#D97706', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Pending Staff Responses
+                  </div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#D97706', marginTop: 4 }}>
+                    {commStats.pendingComplainantResponses}
+                  </div>
+                </div>
+
+                <div className="card" style={{ padding: '14px 18px' }}>
+                  <div style={{ fontSize: '0.74rem', color: '#D92D35', fontWeight: 700, textTransform: 'uppercase' }}>
+                    High-Priority Cases
+                  </div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#D92D35', marginTop: 4 }}>
+                    {commStats.highPriorityCount}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+                gap: 20,
+                alignItems: 'start',
+              }}
+            >
+              <div
+                className="card"
+                style={{
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  maxHeight: 700,
+                  minHeight: 520,
+                }}
+              >
+                <div style={{ position: 'relative' }}>
+                  <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--color-text-secondary)' }} />
+                  <input
+                    type="text"
+                    value={commSearch}
+                    onChange={(e) => setCommSearch(e.target.value)}
+                    placeholder="Search Case ID or category..."
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px 7px 32px',
+                      borderRadius: 8,
+                      border: '1px solid var(--color-border)',
+                      background: 'var(--color-bg-secondary)',
+                      fontSize: '0.82rem',
+                      color: 'var(--color-text-main)',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <select
+                    value={commPriorityFilter}
+                    onChange={(e) => setCommPriorityFilter(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: '5px 8px',
+                      borderRadius: 6,
+                      border: '1px solid var(--color-border)',
+                      background: 'var(--color-card)',
+                      fontSize: '0.74rem',
+                      color: 'var(--color-text-main)',
+                    }}
+                  >
+                    <option value="all">Priority: All</option>
+                    <option value="HIGH">Priority: HIGH</option>
+                    <option value="MEDIUM">Priority: MEDIUM</option>
+                    <option value="LOW">Priority: LOW</option>
+                  </select>
+
+                  <select
+                    value={commStatusFilter}
+                    onChange={(e) => setCommStatusFilter(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: '5px 8px',
+                      borderRadius: 6,
+                      border: '1px solid var(--color-border)',
+                      background: 'var(--color-card)',
+                      fontSize: '0.74rem',
+                      color: 'var(--color-text-main)',
+                    }}
+                  >
+                    <option value="all">Status: All</option>
+                    <option value="active">Active</option>
+                    <option value="awaiting_staff">Awaiting Staff</option>
+                    <option value="awaiting_complainant">Awaiting Complainant</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+
+                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
+                  {loadingComm ? (
+                    <div style={{ textAlign: 'center', padding: '36px 0', color: 'var(--color-text-secondary)', fontSize: '0.82rem' }}>
+                      Loading case channels...
+                    </div>
+                  ) : commConversations.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '36px 12px', color: 'var(--color-text-secondary)', fontSize: '0.82rem' }}>
+                      No conversations found matching filters.
+                    </div>
+                  ) : (
+                    commConversations.map((cItem) => {
+                      const isSelected = commSelectedCaseId === cItem.caseId;
+                      return (
+                        <div
+                          key={cItem._id}
+                          onClick={() => setCommSelectedCaseId(cItem.caseId)}
+                          style={{
+                            padding: '12px 14px',
+                            borderRadius: 10,
+                            border: `1.5px solid ${isSelected ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                            background: isSelected ? 'var(--color-soft-pink)' : 'var(--color-bg-secondary)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ fontWeight: 800, fontSize: '0.84rem', color: isSelected ? 'var(--color-primary)' : 'var(--color-text-main)' }}>
+                              {cItem.caseId}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                padding: '1px 6px',
+                                borderRadius: 4,
+                                background: cItem.priority === 'HIGH' ? 'rgba(217, 45, 53, 0.15)' : 'rgba(217, 119, 6, 0.15)',
+                                color: cItem.priority === 'HIGH' ? '#D92D35' : '#D97706',
+                              }}
+                            >
+                              {cItem.priority}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: '0.76rem', color: 'var(--color-text-secondary)', marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span>{cItem.incidentCategory}</span>
+                            {cItem.unreadStaffCount > 0 && (
+                              <span
+                                style={{
+                                  background: 'var(--color-primary)',
+                                  color: '#FFFFFF',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 800,
+                                  padding: '1px 7px',
+                                  borderRadius: 999,
+                                }}
+                              >
+                                {cItem.unreadStaffCount} new
+                              </span>
+                            )}
+                          </div>
+
+                          <div style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {cItem.lastMessagePreview || 'Channel opened. Ready for messaging.'}
+                          </div>
+
+                          <div style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', opacity: 0.8, marginTop: 4, textAlign: 'right' }}>
+                            {new Date(cItem.lastMessageAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(cItem.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div style={{ minHeight: 520 }}>
+                {commSelectedCaseId ? (
+                  <CaseConversation
+                    caseId={commSelectedCaseId}
+                    isStaffMode={true}
+                    onStatusChange={() => loadCommunications()}
+                  />
+                ) : (
+                  <div
+                    className="card"
+                    style={{
+                      padding: 48,
+                      textAlign: 'center',
+                      color: 'var(--color-text-secondary)',
+                      minHeight: 520,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <MessageSquare size={36} color="var(--color-primary)" style={{ opacity: 0.5, marginBottom: 14 }} />
+                    <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem', color: 'var(--color-text-main)' }}>
+                      Select a Case Communication Channel
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '0.86rem', maxWidth: 400 }}>
+                      Select any active or pending case from the list on the left to read messages, reply to complainants, or issue official evidence requests.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* ─── CASE DETAIL & POSH WORKFLOW DRAWER / MODAL ────────────────────────── */}

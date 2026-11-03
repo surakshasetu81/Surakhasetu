@@ -3,10 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Search, Clock, CheckCircle, AlertCircle, Info, Shield,
-  ArrowLeft, RefreshCw, Lock, PhoneCall, Scale, Eye, EyeOff
+  ArrowLeft, RefreshCw, Lock, PhoneCall, Scale, Eye, EyeOff, MessageSquare, Activity, Send
 } from 'lucide-react';
-import { trackCase as apiTrackCase, submitComplainantClarification } from '../services/api';
-import { Send } from 'lucide-react';
+import { trackCase as apiTrackCase, submitComplainantClarification, authConversation } from '../services/api';
+import CaseConversation from '../components/CaseConversation';
 
 // ─── STATUS CONFIGURATION ───────────────────────────────────────────────────
 interface StatusMeta {
@@ -186,6 +186,9 @@ export default function TrackPage() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshSuccess, setRefreshSuccess] = useState(false);
+  const [activeTab, setActiveTab] = useState<'timeline' | 'conversation'>('timeline');
+  const [complainantToken, setComplainantToken] = useState<string>('');
+  const [convUnreadCount, setConvUnreadCount] = useState<number>(0);
 
   // Case Result state
   const [caseData, setCaseData] = useState<CaseData | null>(null);
@@ -279,6 +282,15 @@ export default function TrackPage() {
         setCaseData(data.case);
         setTimeline(data.timeline || []);
         setGeneralError('');
+        try {
+          const authRes = await authConversation(cleanId, cleanKey);
+          if (authRes?.token) {
+            setComplainantToken(authRes.token);
+            if (authRes.conversation?.unreadComplainantCount !== undefined) {
+              setConvUnreadCount(authRes.conversation.unreadComplainantCount);
+            }
+          }
+        } catch {}
       } else {
         setGeneralError('Unable to verify these details. Please check your Report ID and Recovery Key and try again.');
       }
@@ -325,6 +337,15 @@ export default function TrackPage() {
         setCaseData(data.case);
         setTimeline(data.timeline || []);
         setRefreshSuccess(true);
+        try {
+          const aRes = await authConversation(cleanId, cleanKey);
+          if (aRes?.token) {
+            setComplainantToken(aRes.token);
+            if (aRes.conversation?.unreadComplainantCount !== undefined) {
+              setConvUnreadCount(aRes.conversation.unreadComplainantCount);
+            }
+          }
+        } catch {}
         setTimeout(() => setRefreshSuccess(false), 3000);
       }
     } catch {
@@ -401,6 +422,52 @@ export default function TrackPage() {
             transition={{ duration: 0.35, ease: 'easeOut' }}
             id="case-results-view"
           >
+            {/* Tab Navigation: Status vs Secure Conversation */}
+            <div
+              style={{
+                display: 'flex',
+                gap: 10,
+                marginBottom: 20,
+                borderBottom: '1px solid var(--color-border)',
+                paddingBottom: 12,
+                flexWrap: 'wrap',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setActiveTab('timeline')}
+                className={`btn btn-sm ${activeTab === 'timeline' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                id="tab-case-timeline"
+              >
+                <Activity size={15} /> Case Status & Inquiry Timeline
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('conversation')}
+                className={`btn btn-sm ${activeTab === 'conversation' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                id="tab-case-conversation"
+              >
+                <MessageSquare size={15} /> Secure Case Conversation
+                {convUnreadCount > 0 && (
+                  <span
+                    style={{
+                      background: activeTab === 'conversation' ? '#FFFFFF' : 'var(--color-primary)',
+                      color: activeTab === 'conversation' ? 'var(--color-primary)' : '#FFFFFF',
+                      fontSize: '0.7rem',
+                      fontWeight: 800,
+                      padding: '1px 6px',
+                      borderRadius: 999,
+                      marginLeft: 4,
+                    }}
+                  >
+                    {convUnreadCount}
+                  </span>
+                )}
+              </button>
+            </div>
             {/* Top Action Bar */}
             <div
               style={{
@@ -489,7 +556,18 @@ export default function TrackPage() {
               </div>
             )}
 
-            {/* 1. Case Summary Card */}
+            {activeTab === 'conversation' ? (
+              <div style={{ marginBottom: 32 }}>
+                <CaseConversation
+                  caseId={caseData.caseId}
+                  complainantToken={complainantToken}
+                  isStaffMode={false}
+                  onStatusChange={() => handleRefreshStatus()}
+                />
+              </div>
+            ) : (
+              <>
+                {/* 1. Case Summary Card */}
             <div className="card" style={{ marginBottom: 24, padding: 28 }}>
               <div
                 style={{
@@ -1076,6 +1154,8 @@ export default function TrackPage() {
                 Return to Homepage
               </button>
             </div>
+              </>
+            )}
           </motion.div>
         ) : (
           /* ─────────────────────────────────────────────────────────────── */

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import {
   Shield, Upload, CheckCircle2, AlertTriangle, X, FileText, Copy,
   ArrowRight, ArrowLeft, UserCheck, EyeOff, Check,
-  Scale, Lock, Edit2
+  Scale, Lock, Edit2, MessageSquare
 } from 'lucide-react';
 import {
   submitReport,
@@ -527,9 +527,20 @@ function SuccessScreen({ result }: { result: SubmissionResult }) {
         </span>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 12 }}>
-        <a href={`/track?reportId=${encodeURIComponent(result.caseId)}`} className="btn btn-primary">
-          Track This Report Now
+      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+        <a
+          href={`/track?reportId=${encodeURIComponent(result.caseId)}&recoveryKey=${encodeURIComponent(result.recoveryCode)}&tab=conversation`}
+          className="btn btn-primary"
+          id="open-case-conversation-btn"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 700 }}
+        >
+          <MessageSquare size={16} /> Open Secure Case Conversation
+        </a>
+        <a
+          href={`/track?reportId=${encodeURIComponent(result.caseId)}&recoveryKey=${encodeURIComponent(result.recoveryCode)}`}
+          className="btn btn-secondary"
+        >
+          Track Case Status
         </a>
         <a href="/" className="btn btn-secondary">
           Return Home

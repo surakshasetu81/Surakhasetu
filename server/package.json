@@ -19,7 +19,8 @@
     "test:vault": "node tests/proof_vault_suite.js",
     "seed:staff": "node src/scripts/seedStaff.js",
     "test:assistant": "node tests/safety_assistant_suite.js",
-    "test:auth": "node tests/auth_regression_suite.js"
+    "test:auth": "node tests/auth_regression_suite.js",
+    "test:conversation": "node tests/conversation_suite.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
