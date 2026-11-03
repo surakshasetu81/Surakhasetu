@@ -73,3 +73,4 @@ messageSchema.index({ conversationId: 1, createdAt: 1 });
 messageSchema.index({ caseId: 1, senderType: 1, isRead: 1 });
 
 export default mongoose.model('Message', messageSchema);
+

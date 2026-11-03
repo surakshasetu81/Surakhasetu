@@ -45,6 +45,7 @@ export const getAllStaff = async (req, res) => {
 
         const memberObj = member.toObject();
         memberObj.assignedCasesCount = assignedCount;
+        memberObj.activeCasesCount = assignedCount;
         return memberObj;
       })
     );
@@ -65,7 +66,7 @@ export const getAllStaff = async (req, res) => {
  */
 export const createStaffAccount = async (req, res) => {
   try {
-    const { name, email, department, designation, role = 'case_officer', initialPassword } = req.body;
+    const { name, email, department, designation, role = 'case_officer', icRole = 'case_officer', officialPhone, isContactPublic = true, organization = 'POSH Internal Complaints Committee', initialPassword } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, message: 'Staff member name is required' });
@@ -157,7 +158,7 @@ export const createStaffAccount = async (req, res) => {
 export const updateStaffRole = async (req, res) => {
   try {
     const { id } = req.params;
-    const { role, department, designation } = req.body;
+    const { role, department, designation, icRole, officialPhone, isContactPublic, organization } = req.body;
 
     const staff = await User.findById(id);
     if (!staff) {

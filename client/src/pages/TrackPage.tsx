@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Search, Clock, CheckCircle, AlertCircle, Info, Shield,
-  ArrowLeft, RefreshCw, Lock, PhoneCall, Scale, Eye, EyeOff, MessageSquare, Activity, Send
+  ArrowLeft, RefreshCw, Lock, PhoneCall, Scale, Eye, EyeOff, MessageSquare, Activity, Send, UserCheck, Mail, Phone, Building2, User
 } from 'lucide-react';
 import { trackCase as apiTrackCase, submitComplainantClarification, authConversation } from '../services/api';
 import CaseConversation from '../components/CaseConversation';
@@ -133,6 +133,27 @@ const SUPPORT_LABELS: Record<string, string> = {
 interface CaseData {
   caseId: string;
   status: string;
+  assignedOfficer?: {
+    name: string;
+    designation: string;
+    icRole: string;
+    department: string;
+    organization: string;
+    email: string;
+    officialPhone: string | null;
+    isContactPublic: boolean;
+    assignedOn: string;
+    status: string;
+    communicationStatus: string;
+  } | null;
+  assignmentDate?: string;
+  assignmentStatus?: string;
+  assignmentHistory?: Array<{
+    previousStaffName?: string;
+    newStaffName: string;
+    reason: string;
+    timestamp: string;
+  }>;
   incidentCategory: string;
   incidentDate?: string;
   createdAt: string;
@@ -187,6 +208,7 @@ export default function TrackPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshSuccess, setRefreshSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState<'timeline' | 'conversation'>('timeline');
+  const [officerModalOpen, setOfficerModalOpen] = useState(false);
   const [complainantToken, setComplainantToken] = useState<string>('');
   const [convUnreadCount, setConvUnreadCount] = useState<number>(0);
 
@@ -808,6 +830,377 @@ export default function TrackPage() {
                 </div>
               )}
             </div>
+
+            
+            {/* ─── ASSIGNED COMMITTEE MEMBER SECTION ───────────────────────────────── */}
+            <div
+              className="card"
+              style={{
+                marginBottom: 24,
+                padding: '24px 28px',
+                border: '1.5px solid var(--color-border)',
+                background: 'var(--color-card)',
+                boxShadow: '0 4px 18px rgba(194, 24, 91, 0.04)',
+              }}
+              id="assigned-case-officer-section"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 18, borderBottom: '1px solid var(--color-border)', paddingBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 10,
+                      background: 'var(--color-soft-pink)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--color-primary)',
+                    }}
+                  >
+                    <UserCheck size={20} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--color-text-main)' }}>
+                      Your Assigned Case Officer
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                      Authorized Internal Committee (IC) member responsible for leading the impartial review and inquiry of your case.
+                    </p>
+                  </div>
+                </div>
+
+                {caseData.assignedOfficer ? (
+                  <span
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: 999,
+                      background: 'rgba(22, 133, 107, 0.1)',
+                      color: '#16856B',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      border: '1px solid rgba(22, 133, 107, 0.25)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    <CheckCircle size={13} /> {caseData.assignedOfficer.status || 'Active Inquiry'}
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: 999,
+                      background: 'rgba(217, 119, 6, 0.1)',
+                      color: '#D97706',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      border: '1px solid rgba(217, 119, 6, 0.25)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    <Clock size={13} /> Pending Officer Allocation
+                  </span>
+                )}
+              </div>
+
+              {caseData.assignedOfficer ? (
+                <div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                      gap: 20,
+                      alignItems: 'center',
+                      marginBottom: 20,
+                    }}
+                  >
+                    {/* Member Profile Block */}
+                    <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                      <div
+                        style={{
+                          width: 58,
+                          height: 58,
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, var(--color-soft-pink) 0%, #FFFFFF 100%)',
+                          border: '2px solid var(--color-primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--color-primary)',
+                          fontWeight: 800,
+                          fontSize: '1.25rem',
+                          boxShadow: '0 3px 10px rgba(194, 24, 91, 0.12)',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {caseData.assignedOfficer.name ? caseData.assignedOfficer.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() : <User size={26} />}
+                      </div>
+
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--color-text-main)' }}>
+                            {caseData.assignedOfficer.name}
+                          </h4>
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: 6,
+                              background: 'var(--color-soft-pink)',
+                              color: 'var(--color-primary)',
+                              border: '1px solid rgba(194, 24, 91, 0.2)',
+                              textTransform: 'capitalize',
+                            }}
+                          >
+                            {caseData.assignedOfficer.icRole ? caseData.assignedOfficer.icRole.replace(/_/g, ' ') : 'Internal Committee Member'}
+                          </span>
+                        </div>
+
+                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginTop: 2, fontWeight: 600 }}>
+                          {caseData.assignedOfficer.designation || 'Internal Committee Member'}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Building2 size={13} /> {caseData.assignedOfficer.department || caseData.assignedOfficer.organization || 'Internal Complaints Committee'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contact & Status Details */}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 12,
+                        padding: '12px 16px',
+                        borderRadius: 10,
+                        background: 'var(--color-bg-secondary)',
+                        border: '1px solid var(--color-border)',
+                      }}
+                    >
+                      <div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                          Official Email
+                        </span>
+                        <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--color-text-main)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5, wordBreak: 'break-all' }}>
+                          <Mail size={13} color="var(--color-primary)" />
+                          {caseData.assignedOfficer.email}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                          Official Contact
+                        </span>
+                        <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--color-text-main)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <Phone size={13} color="var(--color-primary)" />
+                          {caseData.assignedOfficer.isContactPublic && caseData.assignedOfficer.officialPhone ? (
+                            <span>{caseData.assignedOfficer.officialPhone}</span>
+                          ) : (
+                            <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.78rem' }}>Via Secure Portal</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                          Assigned On
+                        </span>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--color-text-main)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <Clock size={13} />
+                          {caseData.assignedOfficer.assignedOn
+                            ? new Date(caseData.assignedOfficer.assignedOn).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })
+                            : 'Active Mandate'}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                          Communication Status
+                        </span>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-primary)', marginTop: 2 }}>
+                          {caseData.assignedOfficer.communicationStatus || 'Available / Contact Through Secure Portal'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions Bar */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, paddingTop: 14, borderTop: '1px solid var(--color-border)', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('conversation')}
+                      className="btn btn-primary btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+                      id="officer-send-secure-message-btn"
+                    >
+                      <MessageSquare size={14} /> Send Secure Message
+                    </button>
+
+                    <a
+                      href={`mailto:${caseData.assignedOfficer.email}?subject=Inquiry regarding Case ${caseData.caseId}`}
+                      className="btn btn-secondary btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, textDecoration: 'none' }}
+                      id="officer-contact-email-btn"
+                    >
+                      <Mail size={14} /> Contact Official Email
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => setOfficerModalOpen(true)}
+                      className="btn btn-outline-primary btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
+                      id="officer-view-details-btn"
+                    >
+                      <UserCheck size={14} /> View Case Officer Details
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    padding: '16px 20px',
+                    borderRadius: 10,
+                    background: 'var(--color-bg-secondary)',
+                    border: '1px dashed var(--color-border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 14,
+                  }}
+                >
+                  <div style={{ maxWidth: 640 }}>
+                    <h4 style={{ margin: '0 0 4px', fontSize: '0.94rem', fontWeight: 700, color: 'var(--color-text-main)' }}>
+                      Internal Committee Officer Allocation Pending
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                      Your case has been verified in the intake repository and is currently being allocated to an authorized Internal Committee (IC) officer by the Presiding Officer. You will receive an instant notification here once assigned.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('conversation')}
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <MessageSquare size={14} /> Message Intake Desk
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Officer Details Modal */}
+            {officerModalOpen && caseData.assignedOfficer && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'rgba(0, 0, 0, 0.45)',
+                  backdropFilter: 'blur(3px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 9999,
+                  padding: 20,
+                }}
+                onClick={() => setOfficerModalOpen(false)}
+              >
+                <div
+                  className="card"
+                  style={{
+                    maxWidth: 560,
+                    width: '100%',
+                    padding: 28,
+                    background: 'var(--color-card)',
+                    borderRadius: 16,
+                    boxShadow: '0 12px 36px rgba(0, 0, 0, 0.18)',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <div
+                        style={{
+                          width: 46,
+                          height: 46,
+                          borderRadius: 12,
+                          background: 'var(--color-soft-pink)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--color-primary)',
+                        }}
+                      >
+                        <UserCheck size={24} />
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--color-text-main)' }}>
+                          {caseData.assignedOfficer.name}
+                        </h3>
+                        <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+                          {caseData.assignedOfficer.designation} — {caseData.assignedOfficer.icRole ? caseData.assignedOfficer.icRole.replace(/_/g, ' ') : 'IC Member'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOfficerModalOpen(false)}
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)', padding: 4 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20, fontSize: '0.86rem' }}>
+                    <div style={{ padding: '12px 14px', borderRadius: 8, background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Department & Affiliation</div>
+                      <div style={{ fontWeight: 600, marginTop: 2 }}>{caseData.assignedOfficer.department || caseData.assignedOfficer.organization}</div>
+                    </div>
+
+                    <div style={{ padding: '12px 14px', borderRadius: 8, background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Statutory Authority & Mandate</div>
+                      <p style={{ margin: '4px 0 0', lineHeight: 1.5, color: 'var(--color-text-secondary)', fontSize: '0.82rem' }}>
+                        Empowered under Section 4 and Section 11 of the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013. The officer exercises civil court inquiry powers under CPC 1908 to examine facts, collect statements, and maintain neutral, confidential proceedings.
+                      </p>
+                    </div>
+
+                    <div style={{ padding: '12px 14px', borderRadius: 8, background: 'rgba(22, 133, 107, 0.08)', border: '1px solid rgba(22, 133, 107, 0.25)' }}>
+                      <div style={{ fontSize: '0.72rem', color: '#16856B', fontWeight: 700, textTransform: 'uppercase' }}>Complainant Protection & Non-Retaliation</div>
+                      <p style={{ margin: '4px 0 0', lineHeight: 1.5, color: 'var(--color-text-main)', fontSize: '0.82rem' }}>
+                        All communications via the Suraksha Setu portal are shielded. The officer cannot disclose your identity without explicit consent, and any form of workplace or institutional retaliation is strictly prohibited by law.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => { setOfficerModalOpen(false); setActiveTab('conversation'); }}
+                      className="btn btn-primary btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <MessageSquare size={14} /> Open Secure Conversation
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOfficerModalOpen(false)}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Statutory Deadlines & Progress Metrics */}
             <div className="card" style={{ marginBottom: 24, padding: '20px 24px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)' }}>

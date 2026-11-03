@@ -174,6 +174,17 @@ const organizationVerificationSchema = new mongoose.Schema({
   verifiedAt: { type: Date, default: null },
 }, { _id: false });
 
+const assignmentHistorySchema = new mongoose.Schema({
+  previousStaff: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  previousStaffName: { type: String, default: null },
+  newStaff: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  newStaffName: { type: String, required: true },
+  assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  assignedByName: { type: String },
+  reason: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now },
+}, { _id: false });
+
 const caseSchema = new mongoose.Schema({
   caseId: {
     type: String,
@@ -219,6 +230,11 @@ const caseSchema = new mongoose.Schema({
     default: 'submitted',
   },
   assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  assignedStaffId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  assignedCommitteeMemberId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  assignmentDate: { type: Date },
+  assignmentStatus: { type: String, default: 'Active Inquiry' },
+  assignmentHistory: { type: [assignmentHistorySchema], default: [] },
   evidence: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Evidence' }],
   vaultEvidence: [{ type: mongoose.Schema.Types.ObjectId, ref: 'VaultEvidence' }],
   isUrgent: { type: Boolean, default: false },
@@ -293,6 +309,32 @@ const caseSchema = new mongoose.Schema({
 
 // Do NOT expose recovery code, reporter identity (if anonymous), or internal notes to public tracking
 caseSchema.methods.toPublicJSON = function () {
+  let assignedOfficer = null;
+  const rawOfficer = this.assignedTo || this.assignedStaffId;
+  const officerObj = (rawOfficer && typeof rawOfficer === 'object' && rawOfficer.name)
+    ? rawOfficer
+    : (this._assignedOfficer && typeof this._assignedOfficer === 'object' && this._assignedOfficer.name)
+    ? this._assignedOfficer
+    : (this._populated && this._populated.assignedTo && this._populated.assignedTo.name)
+    ? this._populated.assignedTo
+    : null;
+
+  if (officerObj) {
+    assignedOfficer = {
+      name: officerObj.name,
+      designation: officerObj.designation || 'Internal Committee Member',
+      icRole: officerObj.icRole || 'Case Handling Officer',
+      department: officerObj.department || 'Internal Complaints Committee',
+      organization: officerObj.organization || 'Internal Complaints Committee',
+      email: officerObj.email,
+      officialPhone: officerObj.isContactPublic ? (officerObj.officialPhone || null) : null,
+      isContactPublic: !!officerObj.isContactPublic,
+      assignedOn: this.assignmentDate || this.updatedAt || this.createdAt,
+      status: this.assignmentStatus || 'Active Inquiry',
+      communicationStatus: 'Available / Contact Through Secure Portal',
+    };
+  }
+
   return {
     caseId: this.caseId,
     incidentCategory: this.incidentCategory,
@@ -322,6 +364,15 @@ caseSchema.methods.toPublicJSON = function () {
       organizationType: this.organizationVerification.organizationType,
       organizationName: this.organizationVerification.organizationName,
     } : { isVerified: false },
+    assignedOfficer,
+    assignmentDate: this.assignmentDate,
+    assignmentStatus: this.assignmentStatus,
+    assignmentHistory: (this.assignmentHistory || []).map(h => ({
+      previousStaffName: h.previousStaffName,
+      newStaffName: h.newStaffName,
+      reason: h.reason,
+      timestamp: h.timestamp,
+    })),
   };
 };
 

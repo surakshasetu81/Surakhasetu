@@ -1,3 +1,17 @@
+
+export interface AssignedOfficer {
+  name: string;
+  designation: string;
+  icRole: string;
+  department: string;
+  organization: string;
+  email: string;
+  officialPhone: string | null;
+  isContactPublic: boolean;
+  assignedOn: string;
+  status: string;
+  communicationStatus: string;
+}
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
@@ -400,7 +414,7 @@ export const createStaffAccount = async (payload: {
   return res.data;
 };
 
-export const updateStaffRole = async (id: string, payload: { role?: string; department?: string; designation?: string }) => {
+export const updateStaffRole = async (id: string, payload: { role?: string; department?: string; designation?: string; icRole?: string; officialPhone?: string; isContactPublic?: boolean; organization?: string }) => {
   const res = await api.patch(`/api/admin/staff/${id}/role`, payload);
   return res.data;
 };

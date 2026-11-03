@@ -86,3 +86,4 @@ conversationSchema.index({ assignedStaffId: 1, status: 1 });
 conversationSchema.index({ priority: 1, lastMessageAt: -1 });
 
 export default mongoose.model('Conversation', conversationSchema);
+

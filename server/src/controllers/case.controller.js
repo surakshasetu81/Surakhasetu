@@ -1,3 +1,5 @@
+import Conversation from '../models/Conversation.js';
+import Message from '../models/Message.js';
 import Case from '../models/Case.js';
 import CaseUpdate from '../models/CaseUpdate.js';
 import AuditLog from '../models/AuditLog.js';
@@ -454,12 +456,19 @@ export const trackCase = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Report ID and Recovery Key are required' });
     }
 
-    const foundCase = await Case.findOne({ caseId: targetId }).select('+recoveryCode');
+    const foundCase = await Case.findOne({ caseId: targetId })
+      .select('+recoveryCode')
+      .populate('assignedTo', 'name email staffId role department designation icRole officialPhone isContactPublic organization isActive');
+
     if (!foundCase) {
       return res.status(401).json({
         success: false,
         message: 'Unable to verify these details. Please check your Report ID and Recovery Key and try again.',
       });
+    }
+
+    if (foundCase.assignedTo && typeof foundCase.assignedTo === 'object' && foundCase.assignedTo.name) {
+      foundCase._assignedOfficer = foundCase.assignedTo;
     }
 
     const isMatch = await bcrypt.compare(targetKey, foundCase.recoveryCode);
@@ -969,14 +978,42 @@ export const assignCase = async (req, res) => {
       });
     }
 
+    let prevStaffName = null;
+    if (previousAssignee) {
+      const prevStaff = await User.findById(previousAssignee);
+      if (prevStaff) prevStaffName = prevStaff.name;
+    }
+
+    const effectiveReason = reason?.trim() || (isReassignment ? 'Case reassigned by authorized administrator' : `Case assigned to ${assignedStaff.name} (${assignedStaff.designation || 'IC Member'})`);
+
     foundCase.assignedTo = assignedStaff._id;
+    foundCase.assignedStaffId = assignedStaff._id;
+    foundCase.assignedCommitteeMemberId = assignedStaff._id;
+    foundCase.assignmentDate = new Date();
+    foundCase.assignmentStatus = 'Active Inquiry';
+
     if (['submitted', 'awaiting_review'].includes(foundCase.status)) {
       foundCase.status = 'assigned';
     }
 
+    if (!Array.isArray(foundCase.assignmentHistory)) {
+      foundCase.assignmentHistory = [];
+    }
+
+    foundCase.assignmentHistory.push({
+      previousStaff: previousAssignee || null,
+      previousStaffName: prevStaffName,
+      newStaff: assignedStaff._id,
+      newStaffName: assignedStaff.name,
+      assignedBy: req.user._id,
+      assignedByName: req.user.name,
+      reason: effectiveReason,
+      timestamp: new Date(),
+    });
+
     foundCase.auditHistory.push({
       action: isReassignment ? 'CASE_REASSIGNED' : 'CASE_ASSIGNED',
-      reason: reason?.trim() || `Case assigned to ${assignedStaff.name} (${assignedStaff.staffId || assignedStaff.role})`,
+      reason: effectiveReason,
       performedBy: req.user._id,
       reviewerName: req.user.name,
       reviewerRole: req.user.role,
@@ -988,10 +1025,32 @@ export const assignCase = async (req, res) => {
     await CaseUpdate.create({
       case: foundCase._id,
       status: foundCase.status,
-      message: `Case assigned for authorized inquiry and review to ${assignedStaff.name}.`,
+      message: isReassignment
+        ? `Internal Committee inquiry reassigned to ${assignedStaff.name} (${assignedStaff.designation || 'IC Member'}).`
+        : `Case assigned for authorized inquiry and review to ${assignedStaff.name} (${assignedStaff.designation || 'IC Member'}).`,
       updatedBy: req.user._id,
       isVisibleToReporter: true,
     });
+
+    try {
+      const conv = await Conversation.findOne({ caseId: foundCase.caseId });
+      if (conv) {
+        conv.assignedStaffId = assignedStaff._id;
+        await conv.save();
+
+        await Message.create({
+          conversationId: conv._id,
+          caseId: foundCase.caseId,
+          senderType: 'system',
+          senderDisplayName: 'System Notice',
+          content: `Internal Committee Case Officer updated: ${assignedStaff.name} (${assignedStaff.designation || 'IC Member'}). Complainant messages will be directed to the updated officer.`,
+          messageType: 'status_update',
+          isRead: true,
+        });
+      }
+    } catch (convErr) {
+      console.warn('Conversation sync notice error:', convErr?.message);
+    }
 
     await AuditLog.create({
       action: isReassignment ? 'CASE_REASSIGNED' : 'CASE_ASSIGNED',
