@@ -346,7 +346,7 @@ function FileUpload({ files, setFiles }: { files: File[]; setFiles: (f: File[]) 
           Drop evidence files here or click to browse
         </p>
         <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', maxWidth: 460, margin: '0 auto' }}>
-          Supports JPG, PNG, PDF, MP4, MP3, WAV · Max 10MB per file · Up to 5 files
+          Supports JPG, PNG, PDF, MP4, MP3, WAV | Max 10MB per file | Up to 5 files
         </p>
         <input
           id="evidence-input"
@@ -657,7 +657,7 @@ export default function ReportPage() {
       const fullLocation = [
         step2Data.organizationDetails,
         step2Data.location,
-      ].filter(Boolean).join(' • ');
+      ].filter(Boolean).join(' | ');
 
       const payload: ReportSubmissionPayload = {
         isAnonymous: step1Data.isAnonymous,
@@ -1433,7 +1433,7 @@ export default function ReportPage() {
                     </p>
                     {!step1Data.isAnonymous && step1Data.reporterEmail && (
                       <p style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', margin: 0 }}>
-                        Email: {step1Data.reporterEmail} {step1Data.reporterPhone ? `• Phone: ${step1Data.reporterPhone}` : ''}
+                        Email: {step1Data.reporterEmail} {step1Data.reporterPhone ? `| Phone: ${step1Data.reporterPhone}` : ''}
                       </p>
                     )}
                   </div>
@@ -1637,7 +1637,8 @@ export default function ReportPage() {
                       <span>Submitting to secure intake...</span>
                     ) : (
                       <>
-                        <span>✓ Submit Complaint</span>
+                        <CheckCircle2 size={16} />
+                        <span>Submit Complaint</span>
                       </>
                     )}
                   </button>

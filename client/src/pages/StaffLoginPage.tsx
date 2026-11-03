@@ -103,7 +103,7 @@ export default function StaffLoginPage() {
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 id="staff-password-input"
                 required
                 autoComplete="current-password"

@@ -558,7 +558,7 @@ function LawCard({ law, index }: { law: LawItem; index: number }) {
               onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.92')}
               onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
             >
-              <BookOpen size={15} /> Official Source ↗
+              <BookOpen size={15} /> Official Source
             </a>
 
             {/* Additional Verified Government Source Links */}
@@ -593,7 +593,7 @@ function LawCard({ law, index }: { law: LawItem; index: number }) {
                     e.currentTarget.style.borderColor = `${law.color}40`;
                   }}
                 >
-                  <ExternalLink size={13} color={law.color} /> {source.name} ↗
+                  <ExternalLink size={13} color={law.color} /> {source.name}
                 </a>
               ))}
           </div>
@@ -612,7 +612,10 @@ function LawCard({ law, index }: { law: LawItem; index: number }) {
             border: '1px solid var(--color-border)',
           }}
         >
-          ℹ️ {law.disclaimer}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <Info size={14} color="var(--color-primary)" style={{ flexShrink: 0, marginTop: 3 }} />
+            <span>{law.disclaimer}</span>
+          </div>
         </p>
       </div>
     </motion.article>
@@ -690,7 +693,7 @@ export default function LegalPage() {
                 textDecoration: 'none',
               }}
             >
-              <span>🏛️ MWCD Legislations Portal</span>
+              <span>MWCD Legislations Portal</span>
               <ExternalLink size={13} color="var(--color-primary)" />
             </a>
 
@@ -713,7 +716,7 @@ export default function LegalPage() {
                 textDecoration: 'none',
               }}
             >
-              <span>👩 MWCD Women Legislations</span>
+              <span>MWCD Women Legislations</span>
               <ExternalLink size={13} color="var(--color-primary)" />
             </a>
 
@@ -736,7 +739,7 @@ export default function LegalPage() {
                 textDecoration: 'none',
               }}
             >
-              <span>🏢 Govt POSH Act 2013 Guide</span>
+              <span>Govt POSH Act 2013 Guide</span>
               <ExternalLink size={13} color="var(--color-primary)" />
             </a>
 
@@ -759,7 +762,7 @@ export default function LegalPage() {
                 textDecoration: 'none',
               }}
             >
-              <span>⚖️ Supreme Court Gender Judgments</span>
+              <span>Supreme Court Gender Judgments</span>
               <ExternalLink size={13} color="var(--color-primary)" />
             </a>
 
@@ -782,7 +785,7 @@ export default function LegalPage() {
                 textDecoration: 'none',
               }}
             >
-              <span>📜 India Code Digital Repository</span>
+              <span>India Code Digital Repository</span>
               <ExternalLink size={13} color="var(--color-primary)" />
             </a>
 
@@ -805,7 +808,7 @@ export default function LegalPage() {
                 textDecoration: 'none',
               }}
             >
-              <span>🛡️ National Cyber Crime Portal</span>
+              <span>National Cyber Crime Portal</span>
               <ExternalLink size={13} color="var(--color-primary)" />
             </a>
           </div>

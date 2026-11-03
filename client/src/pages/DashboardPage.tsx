@@ -3,7 +3,7 @@ import {
   LayoutDashboard, FileText, Users, Clock, RefreshCw,
   ShieldAlert, ShieldCheck, Scale, History, AlertTriangle,
   Lock, Search, UserPlus, UserCheck, UserX, Key, Calendar,
-  Bell, X, FolderOpen, Shield, HelpCircle
+  Bell, X, FolderOpen, Shield, HelpCircle, CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
@@ -739,7 +739,7 @@ export default function DashboardPage() {
                   {user?.name}
                 </div>
                 <div style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>
-                  {user?.staffId || user?.role?.toUpperCase()} • {user?.designation || user?.department || 'Authorized Staff'}
+                  {user?.staffId || user?.role?.toUpperCase()} | {user?.designation || user?.department || 'Authorized Staff'}
                 </div>
               </div>
               <span style={{
@@ -1399,7 +1399,9 @@ export default function DashboardPage() {
                             <td style={{ padding: '14px 16px' }}>
                               <div style={{ fontWeight: 600 }}>{c.incidentCategory}</div>
                               <div style={{ fontSize: '0.72rem', color: c.isAnonymous ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}>
-                                {c.isAnonymous ? '🔒 Anonymous' : 'Identified'}
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  {c.isAnonymous ? <><Lock size={11} /> Anonymous</> : 'Identified'}
+                                </span>
                               </div>
                             </td>
 
@@ -1703,7 +1705,7 @@ export default function DashboardPage() {
                           </span>
                         </div>
                         <p style={{ margin: '0 0 6px', fontSize: '0.86rem', color: 'var(--color-text-main)' }}>
-                          <strong>Category:</strong> {c.incidentCategory} • <strong>Assigned:</strong> {c.assignedTo?.name || 'Unassigned'}
+                          <strong>Category:</strong> {c.incidentCategory} | <strong>Assigned:</strong> {c.assignedTo?.name || 'Unassigned'}
                         </p>
                         <div style={{ display: 'flex', gap: 16, fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
                           <span>Target Date: {c.targetResolutionDate ? new Date(c.targetResolutionDate).toLocaleDateString('en-IN') : 'N/A'}</span>
@@ -2061,8 +2063,8 @@ export default function DashboardPage() {
 
             {/* Section 5: Confidential Internal Investigation Notes */}
             <div className="card" style={{ padding: 18, marginBottom: 18 }}>
-              <h4 style={{ margin: '0 0 10px', fontSize: '0.92rem', fontWeight: 800, color: 'var(--color-primary)' }}>
-                🔒 Confidential Internal Investigation Notes
+              <h4 style={{ margin: '0 0 10px', fontSize: '0.92rem', fontWeight: 800, color: 'var(--color-primary)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Lock size={15} /> Confidential Internal Investigation Notes
               </h4>
               <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
                 These notes are strictly confidential to authorized Internal Committee members and are excluded from complainant case tracking.
@@ -2173,8 +2175,8 @@ export default function DashboardPage() {
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                        <div style={{ fontSize: '0.74rem', color: '#16856B', fontWeight: 600 }}>
-                          ✓ Dual-Copy Verified (Primary + Local Replica)
+                        <div style={{ fontSize: '0.74rem', color: '#16856B', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                          <CheckCircle2 size={13} /> Dual-Copy Verified (Primary + Local Replica)
                         </div>
 
                         <div style={{ display: 'flex', gap: 6 }}>

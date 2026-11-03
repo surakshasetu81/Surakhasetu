@@ -614,19 +614,19 @@ export default function VoiceInputButton({
 
             <div style={{ fontSize: '0.84rem', color: 'var(--color-text-secondary)', lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <p style={{ margin: 0 }}>
-                • <strong>Optional Feature:</strong> Voice-to-text is entirely voluntary. You can always type your complaint manually.
+                <strong>Optional Feature:</strong> Voice-to-text is entirely voluntary. You can always type your complaint manually.
               </p>
               <p style={{ margin: 0 }}>
-                • <strong>Browser Speech Processing:</strong> Recognition is handled locally or via your browser's configured speech service (e.g., Google Web Speech in Chrome).
+                <strong>Browser Speech Processing:</strong> Recognition is handled locally or via your browser's configured speech service (e.g., Google Web Speech in Chrome).
               </p>
               <p style={{ margin: 0 }}>
-                • <strong>No Audio Storage on Suraksha Setu:</strong> Suraksha Setu does not record, retain, or upload raw voice audio files to its backend servers.
+                <strong>No Audio Storage on Suraksha Setu:</strong> Suraksha Setu does not record, retain, or upload raw voice audio files to its backend servers.
               </p>
               <p style={{ margin: 0 }}>
-                • <strong>Full Complainant Control:</strong> Recognized words are inserted directly into the editable text box. You can freely review, edit, append, or delete any text before submitting your report.
+                <strong>Full Complainant Control:</strong> Recognized words are inserted directly into the editable text box. You can freely review, edit, append, or delete any text before submitting your report.
               </p>
               <p style={{ margin: 0 }}>
-                • <strong>No Credibility Inference:</strong> Voice input is purely a typing convenience. It is never used to infer tone, emotional distress, or complaint credibility.
+                <strong>No Credibility Inference:</strong> Voice input is purely a typing convenience. It is never used to infer tone, emotional distress, or complaint credibility.
               </p>
             </div>
 

@@ -30,7 +30,7 @@ const VERIFIED_RESOURCES: SupportResource[] = [
     category: 'emotional',
     categoryLabel: 'Emotional Wellbeing',
     description: 'Comprehensive 24/7 tele-mental health services providing psychological first-aid, crisis intervention, and distress counselling in multiple Indian languages.',
-    availability: '24 Hours / 7 Days a week • Free & Toll-Free',
+    availability: '24 Hours / 7 Days a week | Free & Toll-Free',
     phone: '14416',
     phoneDisplay: '14416 or 1800-891-4416',
     website: 'https://telemanas.mohfw.gov.in/',
@@ -44,7 +44,7 @@ const VERIFIED_RESOURCES: SupportResource[] = [
     category: 'emotional',
     categoryLabel: 'Emotional Wellbeing',
     description: 'Dedicated national helpline offering early screening, first-aid, psychological support, distress management, and mental health referral assistance.',
-    availability: '24 Hours / 7 Days a week • Free Toll-Free',
+    availability: '24 Hours / 7 Days a week | Free Toll-Free',
     phone: '18005990019',
     phoneDisplay: '1800-599-0019',
     website: 'https://disabilityaffairs.gov.in/',
@@ -190,7 +190,7 @@ export default function CounsellingSupport() {
                   }}
                 >
                   <HeartHandshake size={15} />
-                  Safe • Respectful • Dignified
+                  Safe | Respectful | Dignified
                 </span>
               </div>
 

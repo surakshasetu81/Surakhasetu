@@ -339,7 +339,7 @@ export default function ProofVaultPage() {
       a.click();
       URL.revokeObjectURL(url);
 
-      setActionMessage({ id: item.evidenceId, text: `✓ Decrypted & downloaded "${item.originalName}"` });
+      setActionMessage({ id: item.evidenceId, text: `Decrypted & downloaded "${item.originalName}"` });
     } catch (err: any) {
       setActionMessage({ id: item.evidenceId, text: `Decryption failed: ${err.message}`, isError: true });
     } finally {
@@ -358,12 +358,12 @@ export default function ProofVaultPage() {
       if (res.isIntact) {
         setActionMessage({
           id: item.evidenceId,
-          text: `✓ Cryptographic integrity verified intact. Primary & backup hash match: ${res.expectedHash.slice(0, 16)}...`,
+          text: `Cryptographic integrity verified intact. Primary & backup hash match: ${res.expectedHash.slice(0, 16)}...`,
         });
       } else {
         setActionMessage({
           id: item.evidenceId,
-          text: `⚠️ Integrity Alert: ${res.message}`,
+          text: `Integrity Alert: ${res.message}`,
           isError: true,
         });
       }
@@ -887,9 +887,9 @@ export default function ProofVaultPage() {
 
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: 4 }}>
                               <span>{formatBytes(item.sizeBytes)}</span>
-                              <span>•</span>
+                              <span style={{ opacity: 0.35 }}>|</span>
                               <span>{new Date(item.createdAt).toLocaleDateString()} at {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                              <span>•</span>
+                              <span style={{ opacity: 0.35 }}>|</span>
                               <span style={{ fontFamily: 'monospace' }}>SHA-256: {item.sha256Digest.slice(0, 10)}…</span>
                             </div>
 
@@ -1018,7 +1018,7 @@ export default function ProofVaultPage() {
                           {selectedFile ? selectedFile.name : 'Choose a file to encrypt'}
                         </span>
                         <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: 4 }}>
-                          {selectedFile ? `${formatBytes(selectedFile.size)} • Ready for in-browser encryption` : 'PDF, JPG, PNG, MP3, WAV, MP4 up to 25MB'}
+                          {selectedFile ? `${formatBytes(selectedFile.size)} | Ready for in-browser encryption` : 'PDF, JPG, PNG, MP3, WAV, MP4 up to 25MB'}
                         </span>
                       </label>
                     </div>
