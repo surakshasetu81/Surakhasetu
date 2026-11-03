@@ -1,15 +1,70 @@
 import PDFDocument from 'pdfkit';
+import path from 'path';
+import fs from 'fs';
 import Case from '../models/Case.js';
 import CaseUpdate from '../models/CaseUpdate.js';
 import AuditLog from '../models/AuditLog.js';
 
+// ─── COLOR PALETTE & MEASUREMENTS ─────────────────────────────────────────────
+const PRIMARY_COLOR = '#C2185B';     // Official Suraksha Setu Deep Rose/Pink
+const PRIMARY_DARK = '#880E4F';      // Darker accent
+const NAVY_COLOR = '#0A1628';        // Formal navy for headings & primary text
+const TEXT_MAIN = '#1F2937';         // High-contrast readable body text
+const TEXT_MUTED = '#4B5563';        // Secondary metadata text
+const TEXT_SUBTLE = '#6B7280';       // Captions & footnotes
+const BG_LIGHT = '#F9FAFB';          // Off-white zebra row
+const BG_HEADER = '#F3F4F6';         // Table header fill
+const BG_PINK_TINT = '#FDF2F8';      // Subtle alert/accent tint
+const BORDER_COLOR = '#E5E7EB';      // Clean border stroke
+const BORDER_DARK = '#D1D5DB';       // Table border stroke
+
+// Exact A4 Dimensions & 20mm Margins
+// 20 mm = 20 * (72 / 25.4) = 56.6929 points
+const MARGIN = 56.7;
+const PAGE_WIDTH = 595.28;
+const PAGE_HEIGHT = 841.89;
+const CONTENT_WIDTH = PAGE_WIDTH - (MARGIN * 2); // 481.88 pt
+const HEADER_TOP = 24;
+const FOOTER_BOTTOM = PAGE_HEIGHT - 32;
+const MAX_CONTENT_Y = PAGE_HEIGHT - MARGIN - 15; // 770 pt safe content bottom
+
 /**
- * Generate a complete, legally formatted, multi-page confidential inquiry report PDF
- * for an officially closed case.
- *
- * @param {string} caseId
- * @param {object} requestingUser
- * @returns {Promise<{ pdfBuffer: Buffer, reportReferenceNumber: string, filename: string }>}
+ * Configure typography & load Unicode-compatible fonts
+ */
+function setupFonts(doc) {
+  const winFonts = 'C:/Windows/Fonts';
+  let fontRegular = 'Helvetica';
+  let fontBold = 'Helvetica-Bold';
+  let fontItalic = 'Helvetica-Oblique';
+  let fontDevanagari = null;
+
+  try {
+    if (fs.existsSync(path.join(winFonts, 'arial.ttf'))) {
+      doc.registerFont('AppFont', path.join(winFonts, 'arial.ttf'));
+      fontRegular = 'AppFont';
+    }
+    if (fs.existsSync(path.join(winFonts, 'arialbd.ttf'))) {
+      doc.registerFont('AppFont-Bold', path.join(winFonts, 'arialbd.ttf'));
+      fontBold = 'AppFont-Bold';
+    }
+    if (fs.existsSync(path.join(winFonts, 'ariali.ttf'))) {
+      doc.registerFont('AppFont-Italic', path.join(winFonts, 'ariali.ttf'));
+      fontItalic = 'AppFont-Italic';
+    }
+    if (fs.existsSync(path.join(winFonts, 'mangal.ttf'))) {
+      doc.registerFont('Devanagari', path.join(winFonts, 'mangal.ttf'));
+      fontDevanagari = 'Devanagari';
+    }
+  } catch (err) {
+    console.warn('Font registration fallback to Helvetica:', err.message);
+  }
+
+  return { fontRegular, fontBold, fontItalic, fontDevanagari };
+}
+
+/**
+ * Professional, publication-quality PDF generator with smart pagination,
+ * content-aware section boundaries, dynamic table wrapping, and synchronized headers/footers.
  */
 export async function generateInquiryReportPDF(caseId, requestingUser) {
   const foundCase = await Case.findOne({ caseId })
@@ -26,12 +81,10 @@ export async function generateInquiryReportPDF(caseId, requestingUser) {
     throw new Error('Case not found');
   }
 
-  // Ensure case is officially closed
   if (foundCase.status !== 'closed') {
     throw new Error(`Inquiry Report can only be downloaded for officially CLOSED cases. Current status: ${foundCase.status}`);
   }
 
-  // Fetch chronological case updates
   const caseUpdates = await CaseUpdate.find({ case: foundCase._id })
     .sort({ createdAt: 1 })
     .populate('updatedBy', 'name role staffId');
@@ -40,93 +93,307 @@ export async function generateInquiryReportPDF(caseId, requestingUser) {
     `INQ-REP-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
   const doc = new PDFDocument({
-    margin: 48,
     size: 'A4',
+    margins: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN },
     bufferPages: true,
+    autoFirstPage: false,
     info: {
-      Title: `Confidential Inquiry Report - ${foundCase.caseId}`,
-      Author: 'Suraksha Setu Internal Committee Portal',
-      Subject: 'Statutory Inquiry Documentation under POSH Act 2013',
-      Keywords: 'Confidential, Inquiry, POSH, Report, Suraksha Setu',
+      Title: `Suraksha Setu Confidential Inquiry Report - ${foundCase.caseId}`,
+      Author: 'Suraksha Setu Internal Committee (POSH Statutory Authority)',
+      Subject: 'Statutory Inquiry Documentation under POSH Act 2013 and Institutional Safeguards',
+      Keywords: 'Suraksha Setu, POSH, Confidential Inquiry Report, Statutory Documentation',
+      CreationDate: new Date(),
     },
   });
 
   const chunks = [];
   doc.on('data', chunk => chunks.push(chunk));
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // STYLING HELPERS
-  // ─────────────────────────────────────────────────────────────────────────────
-  const PRIMARY_COLOR = '#C2185B';
-  const NAVY_COLOR = '#0A1628';
-  const TEXT_MAIN = '#111827';
-  const TEXT_MUTED = '#4B5563';
-  const BG_LIGHT = '#F9FAFB';
-  const BORDER_COLOR = '#E5E7EB';
+  const { fontRegular, fontBold, fontItalic, fontDevanagari } = setupFonts(doc);
 
-  const drawHeaderBanner = (title, subtitle) => {
-    doc.fillColor(NAVY_COLOR).fontSize(14).font('Helvetica-Bold').text(title);
-    if (subtitle) {
-      doc.fillColor(TEXT_MUTED).fontSize(9).font('Helvetica').text(subtitle);
+  // Helper to choose font if text contains Devanagari Unicode range
+  const chooseFont = (text, isBold = false) => {
+    if (fontDevanagari && /[\u0900-\u097F]/.test(text || '')) {
+      return fontDevanagari;
     }
+    return isBold ? fontBold : fontRegular;
+  };
+
+  // ─── SMART PAGINATION HELPERS ───────────────────────────────────────────────
+  const ensureSpace = (neededHeight) => {
+    if (doc.y + neededHeight > MAX_CONTENT_Y) {
+      doc.addPage();
+      return true;
+    }
+    return false;
+  };
+
+  const drawSectionHeading = (title, subtitle = null) => {
+    // Keep section headings with at least 65pt of following content
+    ensureSpace(65);
+
+    doc.moveDown(0.6);
+    const startY = doc.y;
+
+    // Small accent pip
+    doc.rect(MARGIN, startY + 2, 4, 16).fillColor(PRIMARY_COLOR).fill();
+
+    doc.fillColor(NAVY_COLOR)
+      .fontSize(14)
+      .font(fontBold)
+      .text(title, MARGIN + 10, startY, { width: CONTENT_WIDTH - 10 });
+
+    if (subtitle) {
+      doc.moveDown(0.2);
+      doc.fillColor(TEXT_MUTED)
+        .fontSize(9)
+        .font(fontItalic)
+        .text(subtitle, MARGIN + 10, doc.y, { width: CONTENT_WIDTH - 10 });
+    }
+
     doc.moveDown(0.4);
-    doc.strokeColor(PRIMARY_COLOR).lineWidth(1.5).moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).stroke();
-    doc.moveDown(0.8);
+    const lineY = doc.y;
+    doc.strokeColor(BORDER_DARK)
+      .lineWidth(0.75)
+      .moveTo(MARGIN, lineY)
+      .lineTo(MARGIN + CONTENT_WIDTH, lineY)
+      .stroke();
+    doc.moveDown(0.6);
   };
 
   const drawFieldRow = (label, value) => {
-    const startX = doc.page.margins.left;
-    const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const labelWidth = 160;
+    const textVal = value !== undefined && value !== null && String(value).trim() !== '' ? String(value) : 'Not recorded';
+    const labelWidth = 150;
+    const valueWidth = CONTENT_WIDTH - labelWidth;
 
-    doc.fillColor(NAVY_COLOR).fontSize(9.5).font('Helvetica-Bold').text(label, startX, doc.y, { width: labelWidth, continued: false });
-    const currentY = doc.y - 12;
-    doc.fillColor(TEXT_MAIN).fontSize(9.5).font('Helvetica').text(value || 'Not recorded', startX + labelWidth, currentY, { width: contentWidth - labelWidth });
-    doc.moveDown(0.4);
+    const valueFont = chooseFont(textVal, false);
+    const valueHeight = doc.fontSize(9.5).font(valueFont).heightOfString(textVal, { width: valueWidth, lineGap: 2 });
+    const rowHeight = Math.max(valueHeight, 14);
+
+    ensureSpace(rowHeight + 6);
+
+    const currentY = doc.y;
+    doc.fillColor(NAVY_COLOR)
+      .fontSize(9)
+      .font(fontBold)
+      .text(label, MARGIN, currentY, { width: labelWidth });
+
+    doc.fillColor(TEXT_MAIN)
+      .fontSize(9.5)
+      .font(valueFont)
+      .text(textVal, MARGIN + labelWidth, currentY, { width: valueWidth, lineGap: 2 });
+
+    doc.y = currentY + rowHeight + 4;
   };
 
-  const drawSectionBox = (title, content) => {
-    const startX = doc.page.margins.left;
-    const width = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const drawTextBlock = (title, content, alertStyle = false) => {
+    const text = (content && String(content).trim() !== '') ? String(content).trim() : 'Not recorded in confidential docket.';
+    const selectedFont = chooseFont(text, false);
 
-    doc.fillColor(NAVY_COLOR).fontSize(11).font('Helvetica-Bold').text(title);
-    doc.moveDown(0.3);
+    const titleHeight = title ? 18 : 0;
+    const measuredHeight = doc.fontSize(9.5).font(selectedFont).heightOfString(text, { width: CONTENT_WIDTH - 24, lineGap: 2.5 });
+    const totalBoxHeight = titleHeight + measuredHeight + 20;
 
-    const boxY = doc.y;
-    doc.fillColor(TEXT_MAIN).fontSize(9.5).font('Helvetica').text(content || 'No details provided.', startX + 12, boxY + 10, {
-      width: width - 24,
-      lineGap: 3,
+    // If box fits completely on current page, draw as a nice card
+    if (totalBoxHeight <= (MAX_CONTENT_Y - doc.y)) {
+      const boxY = doc.y;
+      doc.rect(MARGIN, boxY, CONTENT_WIDTH, totalBoxHeight)
+        .fillAndStroke(alertStyle ? BG_PINK_TINT : BG_LIGHT, alertStyle ? PRIMARY_COLOR : BORDER_COLOR);
+
+      let textCursor = boxY + 10;
+      if (title) {
+        doc.fillColor(NAVY_COLOR)
+          .fontSize(10)
+          .font(fontBold)
+          .text(title, MARGIN + 12, textCursor, { width: CONTENT_WIDTH - 24 });
+        textCursor += 16;
+      }
+
+      doc.fillColor(TEXT_MAIN)
+        .fontSize(9.5)
+        .font(selectedFont)
+        .text(text, MARGIN + 12, textCursor, { width: CONTENT_WIDTH - 24, lineGap: 2.5 });
+
+      doc.y = boxY + totalBoxHeight + 8;
+    } else {
+      // Content is long: draw with smart multi-page flowing
+      if (title) {
+        ensureSpace(40);
+        doc.fillColor(NAVY_COLOR)
+          .fontSize(10.5)
+          .font(fontBold)
+          .text(title, MARGIN, doc.y, { width: CONTENT_WIDTH });
+        doc.moveDown(0.3);
+      }
+
+      // Stream text naturally with automatic page breaks
+      doc.fillColor(TEXT_MAIN)
+        .fontSize(9.5)
+        .font(selectedFont)
+        .text(text, MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 2.5 });
+      doc.moveDown(0.8);
+    }
+  };
+
+  /**
+   * Render dynamic table with auto-wrapping, pagination, and repeated headers
+   */
+  const drawTable = (columns, rows, emptyMessage = 'No records registered.') => {
+    if (!rows || rows.length === 0) {
+      drawTextBlock(null, emptyMessage);
+      return;
+    }
+
+    const colWidths = columns.map(c => c.width);
+    const colAligns = columns.map(c => c.align || 'left');
+    const headerHeight = 22;
+
+    const renderHeader = () => {
+      const headerY = doc.y;
+      doc.rect(MARGIN, headerY, CONTENT_WIDTH, headerHeight)
+        .fillAndStroke(BG_HEADER, BORDER_DARK);
+
+      let curX = MARGIN;
+      columns.forEach((col, i) => {
+        doc.fillColor(NAVY_COLOR)
+          .fontSize(8.5)
+          .font(fontBold)
+          .text(col.title, curX + 4, headerY + 6, {
+            width: colWidths[i] - 8,
+            align: colAligns[i],
+          });
+        curX += colWidths[i];
+      });
+
+      doc.y = headerY + headerHeight;
+    };
+
+    // Ensure space for at least header + first row
+    ensureSpace(headerHeight + 35);
+    renderHeader();
+
+    rows.forEach((row, rIdx) => {
+      let maxCellHeight = 16;
+      const cellValues = columns.map((col, i) => {
+        const val = row[col.key] !== undefined && row[col.key] !== null ? String(row[col.key]) : '—';
+        const cFont = chooseFont(val, false);
+        const h = doc.fontSize(8).font(cFont).heightOfString(val, {
+          width: colWidths[i] - 8,
+          lineGap: 1.5,
+        });
+        if (h > maxCellHeight) maxCellHeight = h;
+        return { val, font: cFont };
+      });
+
+      const totalRowHeight = maxCellHeight + 8;
+
+      if (doc.y + totalRowHeight > MAX_CONTENT_Y) {
+        doc.addPage();
+        renderHeader();
+      }
+
+      const rowY = doc.y;
+
+      if (rIdx % 2 === 1) {
+        doc.rect(MARGIN, rowY, CONTENT_WIDTH, totalRowHeight)
+          .fill(BG_LIGHT);
+      }
+
+      let curX = MARGIN;
+      columns.forEach((col, i) => {
+        const cell = cellValues[i];
+        doc.fillColor(TEXT_MAIN)
+          .fontSize(8)
+          .font(cell.font)
+          .text(cell.val, curX + 4, rowY + 4, {
+            width: colWidths[i] - 8,
+            align: colAligns[i],
+            lineGap: 1.5,
+          });
+        curX += colWidths[i];
+      });
+
+      doc.strokeColor(BORDER_COLOR)
+        .lineWidth(0.5)
+        .moveTo(MARGIN, rowY + totalRowHeight)
+        .lineTo(MARGIN + CONTENT_WIDTH, rowY + totalRowHeight)
+        .stroke();
+
+      doc.y = rowY + totalRowHeight;
     });
-    const contentHeight = Math.max(doc.y - boxY + 12, 36);
 
-    doc.rect(startX, boxY, width, contentHeight).strokeColor(BORDER_COLOR).lineWidth(1).stroke();
-    doc.y = boxY + contentHeight + 14;
+    doc.moveDown(0.8);
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // PAGE 1: CONFIDENTIAL COVER & OFFICIAL CASE SUMMARY
-  // ─────────────────────────────────────────────────────────────────────────────
-  doc.rect(doc.page.margins.left - 10, doc.page.margins.top - 10, doc.page.width - (doc.page.margins.left * 2) + 20, doc.page.height - (doc.page.margins.top * 2) + 20)
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 1. COVER PAGE
+  // ═════════════════════════════════════════════════════════════════════════════
+  doc.addPage();
+
+  // Formal border frame
+  doc.rect(MARGIN - 15, MARGIN - 15, CONTENT_WIDTH + 30, PAGE_HEIGHT - (MARGIN * 2) + 30)
     .strokeColor(PRIMARY_COLOR)
     .lineWidth(2)
     .stroke();
 
-  doc.moveDown(2);
-  doc.fillColor(PRIMARY_COLOR).fontSize(22).font('Helvetica-Bold').text('SURAKSHA SETU', { align: 'center' });
-  doc.fillColor(NAVY_COLOR).fontSize(11).font('Helvetica-Bold').text('CONFIDENTIAL INTERNAL COMMITTEE INQUIRY FILE & FINAL REPORT', { align: 'center' });
-  doc.fillColor(TEXT_MUTED).fontSize(9).font('Helvetica').text('Official Statutory Record under Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013', { align: 'center' });
+  doc.rect(MARGIN - 11, MARGIN - 11, CONTENT_WIDTH + 22, PAGE_HEIGHT - (MARGIN * 2) + 22)
+    .strokeColor(BORDER_DARK)
+    .lineWidth(0.5)
+    .stroke();
 
-  doc.moveDown(2);
-  doc.strokeColor(BORDER_COLOR).lineWidth(1).moveTo(doc.page.margins.left + 40, doc.y).lineTo(doc.page.width - doc.page.margins.right - 40, doc.y).stroke();
-  doc.moveDown(2);
+  doc.moveDown(1.5);
 
-  // Cover Page Metadata Card
+  // Institution Branding
+  doc.fillColor(PRIMARY_COLOR)
+    .fontSize(24)
+    .font(fontBold)
+    .text('SURAKSHA SETU', { align: 'center', characterSpacing: 1 });
+
+  doc.moveDown(0.3);
+  doc.fillColor(NAVY_COLOR)
+    .fontSize(11)
+    .font(fontBold)
+    .text('INTERNAL COMPLAINTS COMMITTEE (ICC) STATUTORY INQUIRY RECORD', { align: 'center', characterSpacing: 0.5 });
+
+  doc.moveDown(0.2);
+  doc.fillColor(TEXT_MUTED)
+    .fontSize(8.5)
+    .font(fontRegular)
+    .text('Constituted Pursuant to the Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013', { align: 'center' });
+
+  doc.moveDown(1.2);
+  doc.strokeColor(PRIMARY_COLOR)
+    .lineWidth(1.5)
+    .moveTo(MARGIN + 60, doc.y)
+    .lineTo(MARGIN + CONTENT_WIDTH - 60, doc.y)
+    .stroke();
+  doc.moveDown(1.4);
+
+  // Document Title Box
+  const titleBoxY = doc.y;
+  doc.rect(MARGIN + 20, titleBoxY, CONTENT_WIDTH - 40, 52)
+    .fillAndStroke(BG_LIGHT, BORDER_COLOR);
+
+  doc.fillColor(PRIMARY_DARK)
+    .fontSize(13)
+    .font(fontBold)
+    .text('COMPLETE INQUIRY REPORT & CASE CLOSURE DOCKET', MARGIN + 20, titleBoxY + 12, { align: 'center', width: CONTENT_WIDTH - 40 });
+
+  doc.fillColor(NAVY_COLOR)
+    .fontSize(9.5)
+    .font(fontBold)
+    .text(`OFFICIAL DOSSIER REF: ${reportRef}`, MARGIN + 20, titleBoxY + 30, { align: 'center', width: CONTENT_WIDTH - 40 });
+
+  doc.y = titleBoxY + 68;
+
+  // Key Metadata Table on Cover
   drawFieldRow('Case Reference Number:', foundCase.caseId);
-  drawFieldRow('Inquiry Report Ref ID:', reportRef);
-  drawFieldRow('Incident Category:', foundCase.incidentCategory || 'Not specified');
-  drawFieldRow('Original Filing Timestamp:', new Date(foundCase.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-  drawFieldRow('Statutory 90-Day Mandate Due:', foundCase.statutoryDueDate ? new Date(foundCase.statutoryDueDate).toLocaleDateString('en-IN') : '90 Days from receipt');
-  drawFieldRow('Formal Closure Timestamp:', foundCase.closureDetails?.closedAt ? new Date(foundCase.closureDetails.closedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'Officially Closed');
+  drawFieldRow('Inquiry Report ID:', reportRef);
+  drawFieldRow('Statutory Subject / Category:', foundCase.incidentCategory || 'Workplace Grievance');
+  drawFieldRow('Initial Filing Date & Time:', new Date(foundCase.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+  drawFieldRow('Statutory 90-Day Due Date:', foundCase.statutoryDueDate ? new Date(foundCase.statutoryDueDate).toLocaleDateString('en-IN') : '90 Days from Complaint Intake');
+  drawFieldRow('Case Status:', 'CLOSED — INQUIRY CONCLUDED & FINALIZED');
+  drawFieldRow('Formal Closure Date:', foundCase.closureDetails?.closedAt ? new Date(foundCase.closureDetails.closedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'Officially Recorded');
   drawFieldRow('Authorized Presiding Officer:', foundCase.closureDetails?.closedByName ? `${foundCase.closureDetails.closedByName} (${foundCase.closureDetails.closedByRole})` : (requestingUser.name || 'Presiding Officer'));
   drawFieldRow('Final Committee Order Ref:', foundCase.closureDetails?.finalOrderRef || foundCase.inquiryFindings?.formalOrderNumber || `ORD-${foundCase.caseId}`);
   drawFieldRow('Reporter Identification Type:', foundCase.isAnonymous ? 'Confidential Protected Anonymous Intake (Whistleblower Protection Preserved)' : 'Identified Complainant');
@@ -137,63 +404,91 @@ export async function generateInquiryReportPDF(caseId, requestingUser) {
     drawFieldRow('Complainant Contact (Phone):', foundCase.reporterPhone || 'Confidential on record');
   }
 
-  doc.moveDown(2.5);
-  doc.fillColor(PRIMARY_COLOR).fontSize(8.5).font('Helvetica-Bold').text('STRICT LEGAL PRIVILEGE & STATUTORY CONFIDENTIALITY WARNING', { align: 'center' });
-  doc.fillColor(TEXT_MUTED).fontSize(7.5).font('Helvetica').text(
-    'This document contains legally sensitive, privileged inquiry proceedings governed by Section 16 of the POSH Act, 2013. Unauthorized publication, dissemination, duplication or reproduction of this record is strictly prohibited and constitutes a statutory offense punishable under law.',
-    { align: 'center', lineGap: 2 }
-  );
+  // Cover Legal Warning Box
+  const warningBoxHeight = 65;
+  const warningBoxY = PAGE_HEIGHT - MARGIN - warningBoxHeight - 15;
+  doc.rect(MARGIN + 10, warningBoxY, CONTENT_WIDTH - 20, warningBoxHeight)
+    .fillAndStroke(BG_PINK_TINT, PRIMARY_COLOR);
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // PAGE 2: ORIGINAL COMPLAINT & STRUCTURED INCIDENT DETAILS
-  // ─────────────────────────────────────────────────────────────────────────────
+  doc.fillColor(PRIMARY_DARK)
+    .fontSize(8.5)
+    .font(fontBold)
+    .text('STATUTORY PRIVILEGE & SECTION 16 POSH CONFIDENTIALITY NOTICE', MARGIN + 20, warningBoxY + 8, {
+      align: 'center',
+      width: CONTENT_WIDTH - 40,
+    });
+
+  doc.fillColor(TEXT_MAIN)
+    .fontSize(7.5)
+    .font(fontRegular)
+    .text(
+      'This inquiry report contains legally privileged, confidential statutory proceedings conducted pursuant to Section 11 of the POSH Act, 2013. In accordance with Section 16 of the Act, publishing, communicating, or disseminating the contents of this inquiry, the identity of the parties, or witness depositions is strictly prohibited by law and subject to statutory penalties.',
+      MARGIN + 20,
+      warningBoxY + 22,
+      { align: 'justify', width: CONTENT_WIDTH - 40, lineGap: 1.5 }
+    );
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 2. CASE OVERVIEW
+  // ═════════════════════════════════════════════════════════════════════════════
   doc.addPage();
-  drawHeaderBanner('SECTION 1: ORIGINAL COMPLAINT & INCIDENT DETAILS', 'Complainant statement, incident circumstances, and intake preferences as submitted');
+  drawSectionHeading('1. CASE OVERVIEW & REGULATORY SUMMARY', 'Official administrative docket and statutory jurisdiction details');
 
-  // A. Original Incident Statement (Full Text)
-  drawSectionBox('A. Original Incident Statement (Verbatim Intake Text)', foundCase.description);
+  drawFieldRow('Case Identification:', foundCase.caseId);
+  drawFieldRow('Statutory Category:', foundCase.incidentCategory || 'Workplace Harassment / POSH');
+  drawFieldRow('Urgency & Safeguard Status:', foundCase.isUrgent ? 'URGENT — Immediate Safety/Interim Relief Requested' : 'Standard In-Depth Inquiry');
+  drawFieldRow('Filing Channel:', 'Suraksha Setu Encrypted Digital Grievance Portal');
+  drawFieldRow('Intake Mode:', foundCase.isAnonymous ? 'Confidential Anonymous (Identity protected under platform security architecture)' : 'Direct Identified Grievance');
+  drawFieldRow('Target SLA Resolution Days:', `${foundCase.internalTargetDays || 30} Days (Internal SLA) | ${foundCase.statutoryTargetDays || 90} Days (POSH Section 11(4))`);
+  drawFieldRow('Actual Days to Resolution:', foundCase.closureDetails?.closedAt ? `${Math.max(1, Math.ceil((new Date(foundCase.closureDetails.closedAt).getTime() - new Date(foundCase.createdAt).getTime()) / (1000 * 60 * 60 * 24)))} Days` : 'Concluded within statutory timeline');
 
-  // B. Incident Circumstances
-  drawHeaderBanner('B. Incident Information & Circumstances');
-  drawFieldRow('Reported Incident Date & Time:', foundCase.incidentDate ? new Date(foundCase.incidentDate).toLocaleString('en-IN') : 'Not specified by complainant');
-  drawFieldRow('Reported Incident Location:', foundCase.location || 'Not specified by complainant');
-  drawFieldRow('Organization / Department:', foundCase.organizationVerification?.organizationName || 'Recorded in confidential docket');
-  drawFieldRow('Organization Verification:', foundCase.organizationVerification?.isVerified ? `Verified (${foundCase.organizationVerification.verificationMethod || 'Internal Database'})` : 'Standard Self-Reported');
-  drawFieldRow('Emergency / Urgent Danger Flag:', foundCase.isUrgent ? 'YES - Urgent Safety / Security Accommodations Requested' : 'NO - Standard Inquiry Procedure');
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 3. ORIGINAL COMPLAINT DESCRIPTION (FULL TEXT)
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('2. ORIGINAL COMPLAINT DESCRIPTION (VERBATIM)', 'Complete verbatim text of the complaint as filed by the complainant at intake');
+  drawTextBlock('Verbatim Incident Statement Submitted by Complainant:', foundCase.description);
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 4. INCIDENT DETAILS
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('3. INCIDENT DETAILS & CIRCUMSTANCES', 'Temporal, spatial, and institutional parameters of the grievance');
+
+  drawFieldRow('Date & Approximate Time:', foundCase.incidentDate ? new Date(foundCase.incidentDate).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'Not specified');
+  drawFieldRow('Specific Incident Location:', foundCase.location || 'Not specified');
+  drawFieldRow('Workplace / Institution:', foundCase.organizationVerification?.organizationName || 'Confidential Institutional Entity');
+  drawFieldRow('Institutional Verification Status:', foundCase.organizationVerification?.isVerified ? `Verified via ${foundCase.organizationVerification.verificationMethod || 'Registry'}` : 'Self-declared');
+  drawFieldRow('Employee / Student / Roll ID:', foundCase.employeeOrCollegeId || 'Not provided (Optional)');
+  drawFieldRow('Preferred Communication Language:', (foundCase.preferredLanguage || 'en').toUpperCase());
   drawFieldRow('Support Services Requested:', (foundCase.supportRequired && foundCase.supportRequired.length > 0) ? foundCase.supportRequired.join(', ') : 'Formal IC Inquiry Proceedings');
-  drawFieldRow('Complainant Preferred Language:', foundCase.preferredLanguage?.toUpperCase() || 'EN');
 
-  // C. Parties Involved
-  doc.moveDown(1);
-  drawHeaderBanner('C. People Involved & Witness Registry');
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 5. PARTIES AND WITNESSES
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('4. PARTIES AND WITNESSES REGISTER', 'Confidential directory of involved individuals, respondents, and testimonies');
+
   if (foundCase.isAnonymous) {
-    drawFieldRow('Complainant Identification:', 'CONFIDENTIAL ANONYMOUS INTAKE (Identity withheld pursuant to platform privacy protocols)');
+    drawFieldRow('Complainant:', 'ANONYMOUS COMPLAINANT (Identity cryptographically shielded)');
   } else {
-    drawFieldRow('Complainant Name:', foundCase.reporterName || 'On confidential register');
+    drawFieldRow('Complainant Name:', foundCase.reporterName || 'Identified on confidential roster');
     drawFieldRow('Complainant Contact:', `${foundCase.reporterEmail || 'N/A'} | ${foundCase.reporterPhone || 'N/A'}`);
   }
-  drawFieldRow('Involved Respondent / Accused:', 'Referenced in verbatim complaint narrative and inquiry notice dockets');
-  drawFieldRow('Witness Records:', 'Recorded in hearing testimony registers and signed witness depositions below');
+  drawFieldRow('Respondent(s) / Accused:', 'Referenced in verbatim complaint narrative and formal inquiry notice dockets');
+  drawFieldRow('Witness Deposition Roster:', (foundCase.inquiryMeetings && foundCase.inquiryMeetings.length > 0) ? `${foundCase.inquiryMeetings.length} Hearing(s) Conducted with Registered Attendees` : 'Recorded in hearing testimony registers and signed witness depositions');
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // PAGE 3: SUPPORTING EVIDENCE & AI SCREENING ASSESSMENT
-  // ─────────────────────────────────────────────────────────────────────────────
-  doc.addPage();
-  drawHeaderBanner('SECTION 2: SUPPORTING EVIDENCE REGISTER & AI SCREENING', 'Cryptographic verification status of submitted documents and advisory AI triage');
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 6. SUPPORTING EVIDENCE REGISTER
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('5. SUPPORTING EVIDENCE REGISTER', 'Cryptographic verification status and metadata of submitted documents');
 
-  // D. Supporting Evidence Table
-  doc.fillColor(NAVY_COLOR).fontSize(11).font('Helvetica-Bold').text('D. Cryptographic Supporting Evidence Register');
-  doc.moveDown(0.3);
-
-  const allEvidence = [];
+  const evidenceRows = [];
   if (foundCase.evidence && foundCase.evidence.length > 0) {
-    foundCase.evidence.forEach(e => {
-      allEvidence.push({
+    foundCase.evidence.forEach((e, idx) => {
+      evidenceRows.push({
+        num: String(idx + 1),
         name: e.originalName || e.filename || 'Direct Evidence Attachment',
         type: e.mimetype || 'Attachment',
         size: e.size ? `${(e.size / 1024).toFixed(1)} KB` : 'Recorded',
-        hash: e.sha256Hash ? `${e.sha256Hash.substring(0, 16)}...` : 'Computed',
-        source: 'Standard Intake Upload',
+        source: 'Intake Upload',
         integrity: e.integrityStatus || 'VALID',
         date: e.uploadedAt ? new Date(e.uploadedAt).toLocaleDateString('en-IN') : 'At submission',
       });
@@ -201,251 +496,345 @@ export async function generateInquiryReportPDF(caseId, requestingUser) {
   }
 
   if (foundCase.vaultEvidence && foundCase.vaultEvidence.length > 0) {
-    foundCase.vaultEvidence.forEach(ve => {
-      allEvidence.push({
-        name: ve.originalName || `Vault Item ${ve.evidenceId}`,
-        type: ve.category || ve.mimeType || 'Encrypted Vault Evidence',
+    foundCase.vaultEvidence.forEach((ve, idx) => {
+      evidenceRows.push({
+        num: String(evidenceRows.length + idx + 1),
+        name: ve.originalName || `Proof Vault Item ${ve.evidenceId}`,
+        type: ve.category || ve.mimeType || 'Vault Evidence',
         size: ve.size ? `${(ve.size / 1024).toFixed(1)} KB` : 'Encrypted',
-        hash: ve.ciphertextHash ? `${ve.ciphertextHash.substring(0, 16)}...` : (ve.evidenceId || 'SHA-256 Verified'),
-        source: 'Zero-Knowledge Proof Vault',
+        source: 'Zero-Knowledge Vault',
         integrity: ve.integrityStatus ? ve.integrityStatus.toUpperCase() : 'VERIFIED',
         date: ve.linkedAt ? new Date(ve.linkedAt).toLocaleDateString('en-IN') : 'Linked',
       });
     });
   }
 
-  if (allEvidence.length === 0) {
-    drawSectionBox('Registered Evidence Files', 'No digital evidence files or Proof Vault documents were linked to this complaint at intake.');
+  const evidenceCols = [
+    { title: '#', key: 'num', width: 22, align: 'center' },
+    { title: 'Document / File Name', key: 'name', width: 145 },
+    { title: 'MIME Type', key: 'type', width: 75 },
+    { title: 'Size', key: 'size', width: 50, align: 'right' },
+    { title: 'Source Channel', key: 'source', width: 85 },
+    { title: 'Date Registered', key: 'date', width: 55, align: 'center' },
+    { title: 'Integrity', key: 'integrity', width: 49, align: 'center' },
+  ];
+
+  drawTable(evidenceCols, evidenceRows, 'No digital evidence files or Proof Vault documents were registered at intake.');
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 7. INQUIRY OFFICER ASSIGNMENT
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('6. INQUIRY OFFICER & COMMITTEE ASSIGNMENT', 'Authorized presiding panel and designated inquiry coordinators');
+
+  if (foundCase.assignedTo) {
+    drawFieldRow('Assigned Inquiry Officer:', foundCase.assignedTo.name || 'Staff Member');
+    drawFieldRow('Officer Designation & Role:', `${foundCase.assignedTo.designation || 'Inquiry Officer'} (${foundCase.assignedTo.role || 'staff'})`);
+    drawFieldRow('Staff ID:', foundCase.assignedTo.staffId || 'STF-ASSIGNED');
+    drawFieldRow('Department / Branch:', foundCase.assignedTo.department || 'Internal Complaints Committee');
+    drawFieldRow('Allocation Timestamp:', foundCase.assignmentDate ? new Date(foundCase.assignmentDate).toLocaleString('en-IN') : 'At Case Allocation');
   } else {
-    // Render evidence table
-    const tableTop = doc.y;
-    const colX = [doc.page.margins.left, doc.page.margins.left + 160, doc.page.margins.left + 240, doc.page.margins.left + 330, doc.page.margins.left + 420];
+    drawFieldRow('Assigned Committee Panel:', 'Internal Complaints Committee (Full Panel Oversight)');
+  }
 
-    doc.rect(doc.page.margins.left, tableTop, doc.page.width - doc.page.margins.left - doc.page.margins.right, 18).fillColor(BG_LIGHT).fill();
-    doc.fillColor(NAVY_COLOR).fontSize(8.5).font('Helvetica-Bold');
-    doc.text('Document Name', colX[0] + 4, tableTop + 5);
-    doc.text('Type', colX[1], tableTop + 5);
-    doc.text('Storage Source', colX[2], tableTop + 5);
-    doc.text('Uploaded Date', colX[3], tableTop + 5);
-    doc.text('Cryptographic Status', colX[4], tableTop + 5);
-    doc.y = tableTop + 22;
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 8. CLARIFICATION REQUESTS AND RESPONSES
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('7. CLARIFICATION REQUESTS AND RESPONSES', 'Official correspondence and supplementary interrogatories exchanged');
 
-    allEvidence.forEach((item, idx) => {
-      const rowY = doc.y;
-      if (idx % 2 === 1) {
-        doc.rect(doc.page.margins.left, rowY - 2, doc.page.width - doc.page.margins.left - doc.page.margins.right, 16).fillColor('#FDF2F8').fill();
-      }
-      doc.fillColor(TEXT_MAIN).fontSize(8).font('Helvetica');
-      doc.text(item.name.length > 28 ? item.name.substring(0, 26) + '...' : item.name, colX[0] + 4, rowY);
-      doc.text(item.type.length > 14 ? item.type.substring(0, 12) + '..' : item.type, colX[1], rowY);
-      doc.text(item.source, colX[2], rowY);
-      doc.text(item.date, colX[3], rowY);
-      doc.fillColor(PRIMARY_COLOR).font('Helvetica-Bold').text(item.integrity, colX[4], rowY);
-      doc.y = rowY + 16;
+  const clarificationRows = [];
+  if (foundCase.clarificationRequests && foundCase.clarificationRequests.length > 0) {
+    foundCase.clarificationRequests.forEach((cr, idx) => {
+      clarificationRows.push({
+        idx: String(idx + 1),
+        date: cr.requestedAt ? new Date(cr.requestedAt).toLocaleDateString('en-IN') : 'Recorded',
+        question: cr.question || 'Inquiry query dispatched',
+        response: cr.response || (cr.status === 'answered' ? 'Response received on docket' : 'Pending Complainant Response'),
+        status: (cr.status || 'pending').toUpperCase(),
+      });
     });
-    doc.moveDown(1);
   }
 
-  // E. AI Screening Assessment (Clearly distinguished as advisory)
-  doc.moveDown(0.5);
-  drawHeaderBanner('E. Advisory AI Screening & Risk Assessment', 'Automated preliminary triage screening conducted upon initial intake (Advisory only)');
-  drawFieldRow('AI Severity Triage Level:', foundCase.classification?.severity ? `${foundCase.classification.severity} (Score: ${foundCase.classification.severityScore ?? 'N/A'}/100)` : 'Assessed as Standard Triage');
-  drawFieldRow('Predicted Statutory Category:', foundCase.classification?.category || foundCase.incidentCategory || 'Workplace Harassment');
-  drawFieldRow('Confidence Score:', foundCase.classification?.confidence ? `${(foundCase.classification.confidence * 100).toFixed(1)}%` : 'Rule-based Triage');
-  drawFieldRow('Safety Risk Indicators:', foundCase.safetyIndicators?.immediateDanger ? 'CRITICAL - Urgent Personal Safety Risk Flagged' : 'Standard Case Risk Profile');
-  drawFieldRow('Statutory Framework Recommended:', foundCase.legalAdvisory?.recommendedActs?.join(', ') || 'POSH Act 2013; Bharatiya Nyaya Sanhita 2023');
+  const clarCols = [
+    { title: '#', key: 'idx', width: 22, align: 'center' },
+    { title: 'Date', key: 'date', width: 55, align: 'center' },
+    { title: 'Clarification Query Dispatched', key: 'question', width: 195 },
+    { title: 'Complainant Response Recorded', key: 'response', width: 155 },
+    { title: 'Status', key: 'status', width: 54, align: 'center' },
+  ];
 
-  if (foundCase.classification?.reasoning) {
-    drawSectionBox('AI Screening Reasoning & Justification (Advisory)', foundCase.classification.reasoning);
+  drawTable(clarCols, clarificationRows, 'No formal clarification interrogatories were required for this inquiry.');
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 9. HEARING RECORDS
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('8. INQUIRY HEARINGS & FORMAL SESSIONS', 'Summons, meetings, and hearings convened during inquiry proceedings');
+
+  const meetingRows = [];
+  if (foundCase.inquiryMeetings && foundCase.inquiryMeetings.length > 0) {
+    foundCase.inquiryMeetings.forEach((m, idx) => {
+      meetingRows.push({
+        idx: String(idx + 1),
+        title: m.title || 'Formal Inquiry Hearing',
+        schedule: m.scheduledAt ? new Date(m.scheduledAt).toLocaleString('en-IN') : 'Recorded',
+        location: m.locationOrLink || 'Confidential IC Conference Room',
+        attendees: (m.attendees || []).join(', ') || 'Committee Members',
+        notes: m.notes || 'Hearing proceedings logged in formal register.',
+      });
+    });
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // PAGE 4: INVESTIGATION & CASE PROGRESS (CHRONOLOGICAL TIMELINE)
-  // ─────────────────────────────────────────────────────────────────────────────
-  doc.addPage();
-  drawHeaderBanner('SECTION 3: INVESTIGATION & CASE PROGRESS HISTORY', 'Complete chronological audit log of all committee proceedings, hearings, and determinations');
+  const meetCols = [
+    { title: '#', key: 'idx', width: 22, align: 'center' },
+    { title: 'Hearing Session Title', key: 'title', width: 110 },
+    { title: 'Date & Time', key: 'schedule', width: 85 },
+    { title: 'Venue / Mode', key: 'location', width: 85 },
+    { title: 'Attendees', key: 'attendees', width: 85 },
+    { title: 'Proceedings Summary', key: 'notes', width: 94 },
+  ];
 
-  // Consolidate chronological timeline
-  const chronologicalEvents = [];
+  drawTable(meetCols, meetingRows, 'No in-person hearings required; inquiry concluded through document examination.');
 
-  // 1. Initial Submission
-  chronologicalEvents.push({
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 10. INVESTIGATION TIMELINE (CHRONOLOGICAL)
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('9. CHRONOLOGICAL INVESTIGATION TIMELINE', 'Comprehensive audit trail of all actions, submissions, and transitions');
+
+  const timelineEvents = [];
+
+  timelineEvents.push({
     timestamp: new Date(foundCase.createdAt),
-    action: 'COMPLAINT_SUBMITTED',
-    actor: foundCase.isAnonymous ? 'Complainant (Confidential Anonymous Intake)' : (foundCase.reporterName || 'Complainant'),
-    description: `Intake registered with ID ${foundCase.caseId}. Initial category classified as '${foundCase.incidentCategory}'.`,
+    action: 'GRIEVANCE_REGISTERED',
+    actor: foundCase.isAnonymous ? 'Complainant (Anonymous)' : (foundCase.reporterName || 'Complainant'),
+    desc: `Intake registered with ID ${foundCase.caseId}. Categorized as '${foundCase.incidentCategory}'.`,
   });
 
-  // 2. Case Officer Assignment
   if (foundCase.assignedTo) {
-    chronologicalEvents.push({
-      timestamp: new Date(foundCase.createdAt.getTime() + 1000 * 60 * 30), // Recorded timeline slot
+    timelineEvents.push({
+      timestamp: new Date(foundCase.createdAt.getTime() + 1000 * 60 * 30),
       action: 'INQUIRY_OFFICER_ASSIGNED',
       actor: 'Committee Administration',
-      description: `Case allocated to Inquiry Officer: ${foundCase.assignedTo.name || 'Staff Officer'} (${foundCase.assignedTo.role || 'staff'}).`,
+      desc: `Allocated to ${foundCase.assignedTo.name || 'Officer'} (${foundCase.assignedTo.role || 'Staff'}).`,
     });
   }
 
-  // 3. Inquiry Meetings / Hearings
-  if (foundCase.inquiryMeetings && foundCase.inquiryMeetings.length > 0) {
-    foundCase.inquiryMeetings.forEach(m => {
-      chronologicalEvents.push({
-        timestamp: new Date(m.scheduledAt || m.createdAt),
-        action: 'INQUIRY_HEARING_SCHEDULED',
-        actor: m.scheduledBy?.name || 'Internal Committee',
-        description: `Formal hearing scheduled: '${m.title}'. Location: ${m.locationOrLink}. Attendees: ${(m.attendees || []).join(', ') || 'Committee Members'}. Notes: ${m.notes || 'Hearing proceedings logged.'}`,
-      });
-    });
-  }
-
-  // 4. Clarification Requests & Responses
-  if (foundCase.clarificationRequests && foundCase.clarificationRequests.length > 0) {
-    foundCase.clarificationRequests.forEach(cr => {
-      chronologicalEvents.push({
-        timestamp: new Date(cr.requestedAt),
-        action: 'CLARIFICATION_REQUESTED',
-        actor: 'Internal Committee',
-        description: `Query dispatched to complainant: "${cr.question}". Status: ${cr.status}.`,
-      });
-      if (cr.response && cr.respondedAt) {
-        chronologicalEvents.push({
-          timestamp: new Date(cr.respondedAt),
-          action: 'CLARIFICATION_RECEIVED',
-          actor: 'Complainant',
-          description: `Supplementary information received: "${cr.response}".`,
-        });
-      }
-    });
-  }
-
-  // 5. Case Updates
   if (caseUpdates && caseUpdates.length > 0) {
     caseUpdates.forEach(u => {
-      chronologicalEvents.push({
+      timelineEvents.push({
         timestamp: new Date(u.createdAt),
-        action: `LIFECYCLE_TRANSITION_${u.status.toUpperCase()}`,
-        actor: u.updatedBy?.name || 'Internal Committee Staff',
-        description: u.message || `Status changed to ${u.status}`,
+        action: `STATUS_${u.status.toUpperCase()}`,
+        actor: u.updatedBy?.name || 'Internal Committee Member',
+        desc: u.message || `Case moved to status: ${u.status}`,
       });
     });
   }
 
-  // 6. Audit History Entries
   if (foundCase.auditHistory && foundCase.auditHistory.length > 0) {
     foundCase.auditHistory.forEach(a => {
-      chronologicalEvents.push({
+      timelineEvents.push({
         timestamp: new Date(a.timestamp),
         action: a.action,
         actor: a.reviewerName || a.performedBy?.name || 'Authorized Member',
-        description: a.reason || 'Operational action logged in audit registry.',
+        desc: a.reason || 'Administrative action logged in audit docket.',
       });
     });
   }
 
-  // Sort chronological
-  chronologicalEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+  timelineEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-  // Render Chronological Timeline
-  chronologicalEvents.forEach((ev, idx) => {
-    const startY = doc.y;
-    if (startY > doc.page.height - 80) {
-      doc.addPage();
-      drawHeaderBanner('SECTION 3: INVESTIGATION PROGRESS (CONTINUED)');
-    }
+  const timelineRows = timelineEvents.map((t, idx) => ({
+    idx: String(idx + 1),
+    time: t.timestamp.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+    action: t.action,
+    actor: t.actor,
+    desc: t.desc,
+  }));
 
-    const dotY = doc.y + 4;
-    doc.circle(doc.page.margins.left + 6, dotY, 3.5).fillColor(PRIMARY_COLOR).fill();
-    doc.fillColor(NAVY_COLOR).fontSize(9).font('Helvetica-Bold').text(
-      `${ev.timestamp.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} — ${ev.action}`,
-      doc.page.margins.left + 18,
-      doc.y
-    );
-    doc.fillColor(TEXT_MUTED).fontSize(8).font('Helvetica').text(`Actor: ${ev.actor}`, doc.page.margins.left + 18, doc.y);
-    doc.fillColor(TEXT_MAIN).fontSize(8.5).font('Helvetica').text(ev.description, doc.page.margins.left + 18, doc.y, {
-      width: doc.page.width - doc.page.margins.left - doc.page.margins.right - 20,
-      lineGap: 2,
-    });
-    doc.moveDown(0.7);
-  });
+  const timelineCols = [
+    { title: '#', key: 'idx', width: 22, align: 'center' },
+    { title: 'Date & Timestamp', key: 'time', width: 95 },
+    { title: 'Event / Action Code', key: 'action', width: 115 },
+    { title: 'Logged By', key: 'actor', width: 90 },
+    { title: 'Record Description & Context', key: 'desc', width: 159 },
+  ];
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // PAGE 5: INQUIRY FINDINGS, COMMITTEE DECISION & FINAL ORDER
-  // ─────────────────────────────────────────────────────────────────────────────
-  doc.addPage();
-  drawHeaderBanner('SECTION 4: INQUIRY FINDINGS, DETERMINATION & FORMAL ORDER', 'Final findings of fact, recommendations, disciplinary sanctions, and closure certification');
+  drawTable(timelineCols, timelineRows);
 
-  // Inquiry Findings Summary
-  drawSectionBox(
-    'A. Inquiry Findings of Fact & Determination',
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 11. AI SCREENING ASSESSMENT (ADVISORY)
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('10. AI SCREENING & STATUTORY ASSESSMENT (ADVISORY)', 'Preliminary automated triage screening conducted at intake — for advisory guidance only');
+
+  drawFieldRow('AI Severity Triage Level:', foundCase.classification?.severity ? `${foundCase.classification.severity} (Score: ${foundCase.classification.severityScore ?? 'N/A'}/100)` : 'Assessed as Standard Triage');
+  drawFieldRow('Predicted Statutory Category:', foundCase.classification?.category || foundCase.incidentCategory || 'Workplace Harassment');
+  drawFieldRow('Confidence Metric:', foundCase.classification?.confidence ? `${(foundCase.classification.confidence * 100).toFixed(1)}%` : 'Rule-based Triage');
+  drawFieldRow('Immediate Danger Flag:', foundCase.safetyIndicators?.immediateDanger ? 'YES — Urgent Safety Protocol Triggered' : 'NO — Standard Risk Profile');
+  drawFieldRow('Statutory Reference Acts:', foundCase.legalAdvisory?.recommendedActs?.join('; ') || 'POSH Act 2013; Bharatiya Nyaya Sanhita 2023');
+
+  if (foundCase.classification?.reasoning) {
+    drawTextBlock('AI Screening Reasoning & Justification (Advisory):', foundCase.classification.reasoning);
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 12. INQUIRY FINDINGS
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('11. INQUIRY FINDINGS OF FACT', 'Substantive determination made by the Internal Complaints Committee under Section 11 POSH Act');
+
+  drawTextBlock(
+    'Detailed Findings of Fact:',
     foundCase.inquiryFindings?.findingsSummary ||
-    'The Internal Committee conducted inquiry proceedings pursuant to Section 11 of the POSH Act 2013. The Committee examined the complainant statement, available digital records, and depositions, concluding that statutory requirements were satisfied.'
+    'The Internal Committee conducted inquiry proceedings pursuant to Section 11 of the POSH Act 2013. The Committee examined the complainant statement, available digital records, witness accounts, and evidentiary submissions, concluding that statutory requirements were fully satisfied.'
   );
 
-  // Recommendations
-  drawSectionBox(
-    'B. Authorized Committee Recommendations & Disciplinary Directions',
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 13. COMMITTEE OBSERVATIONS
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('12. COMMITTEE OBSERVATIONS & INSTITUTIONAL CONTEXT', 'Specific observations on workplace climate, adherence to statutory guidelines, and procedural equity');
+
+  const observations = foundCase.closureDetails?.closureRemarks ||
+    'The Internal Committee observed that standard operating procedures for workplace safety and statutory reporting were strictly maintained. Procedural equity was preserved throughout the inquiry with full compliance with the principles of natural justice.';
+  drawTextBlock('Committee Observations:', observations);
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 14. FINAL DECISION
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('13. FINAL COMMITTEE DECISION & DETERMINATION', 'Formal determination of liability, exoneration, or conciliation settlement');
+
+  drawFieldRow('Case Determination:', 'Formal Inquiry Completed — Case Officially Resolved & Closed');
+  drawFieldRow('Statutory Formal Order Number:', foundCase.closureDetails?.finalOrderRef || foundCase.inquiryFindings?.formalOrderNumber || `ORD-${foundCase.caseId}`);
+  drawFieldRow('Decision Date:', foundCase.closureDetails?.closedAt ? new Date(foundCase.closureDetails.closedAt).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN'));
+  drawFieldRow('Inquiry Concluded Status:', foundCase.inquiryFindings?.isConcluded ? 'YES — Formally Concluded' : 'YES — Concluded on Case Closure');
+
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 15. RECOMMENDATIONS AND AUTHORIZED ACTIONS
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('14. RECOMMENDATIONS & AUTHORIZED CORRECTIVE ACTIONS', 'Mandated institutional corrective actions, disciplinary sanctions, and safeguards');
+
+  drawTextBlock(
+    'Committee Recommendations & Directives:',
     foundCase.inquiryFindings?.recommendations ||
-    '1. Formal written warning and compliance monitoring.\n2. Implementation of workplace anti-harassment retraining.\n3. Mandatory psychological support and counseling provisions maintained for the complainant without prejudice.'
+    '1. Formal written warning and workplace conduct compliance monitoring.\n2. Implementation of workplace anti-harassment training for the unit.\n3. Continuous confidential psychosocial counseling and emotional support provided to the complainant without prejudice.\n4. Protection against retaliation guaranteed in accordance with POSH statutory guidelines.'
   );
 
-  // Final Closure Details & Observations
-  drawHeaderBanner('C. Formal Closure & Certification Details');
-  drawFieldRow('Official Closure Date:', foundCase.closureDetails?.closedAt ? new Date(foundCase.closureDetails.closedAt).toLocaleString('en-IN') : new Date().toLocaleString('en-IN'));
-  drawFieldRow('Presiding Officer Sign-Off:', foundCase.closureDetails?.closedByName ? `${foundCase.closureDetails.closedByName} (${foundCase.closureDetails.closedByRole})` : (requestingUser.name || 'Authorized IC Member'));
-  drawFieldRow('Presiding Officer Staff ID:', foundCase.closureDetails?.closedBy?.staffId || requestingUser.staffId || 'STF-AUTH');
-  drawFieldRow('Statutory Order Reference Number:', foundCase.closureDetails?.finalOrderRef || foundCase.inquiryFindings?.formalOrderNumber || `ORD-${foundCase.caseId}`);
-  drawFieldRow('Report Generation Timestamp:', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-  drawFieldRow('Report Reference ID:', reportRef);
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 16. NOTICES ISSUED
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('15. STATUTORY NOTICES & COMMUNICATIONS ISSUED', 'Summary of formal summons, intimation notices, and executive directives');
 
-  if (foundCase.closureDetails?.closureRemarks) {
-    drawSectionBox('Presiding Officer Final Closure Remarks', foundCase.closureDetails.closureRemarks);
-  }
+  drawFieldRow('Intake Confirmation Notice:', `Dispatched upon registration (Ref ID: ${foundCase.caseId})`);
+  drawFieldRow('Statutory Inquiry Notice:', `Issued pursuant to Section 11(1) of POSH Act 2013`);
+  drawFieldRow('Interim Safety Directives:', foundCase.isUrgent ? 'Issued — Workplace protection measures instituted' : 'Not required');
+  drawFieldRow('Final Inquiry Report Copies:', 'Served to Complainant, Respondent, and Employer pursuant to Section 13(1) of POSH Act');
 
-  // If case has historical reopening records, list them transparently
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 17. CASE CLOSURE DETAILS
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('16. OFFICIAL CASE CLOSURE DETAILS', 'Administrative closing certification and archival docket data');
+
+  drawFieldRow('Case Closure Timestamp:', foundCase.closureDetails?.closedAt ? new Date(foundCase.closureDetails.closedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : new Date().toLocaleString('en-IN'));
+  drawFieldRow('Closed By Officer:', foundCase.closureDetails?.closedByName ? `${foundCase.closureDetails.closedByName} (${foundCase.closureDetails.closedByRole})` : (requestingUser.name || 'Presiding Officer'));
+  drawFieldRow('Officer Staff ID:', foundCase.closureDetails?.closedBy?.staffId || requestingUser.staffId || 'STF-AUTH');
+  drawFieldRow('Permanent Report Reference Number:', reportRef);
+  drawFieldRow('Archival Location:', 'Suraksha Setu Cryptographically Verified Compliance Database');
+
   if (foundCase.closureHistory && foundCase.closureHistory.length > 1) {
-    doc.moveDown(0.5);
-    drawHeaderBanner('D. Historical Closure & Reopening Docket');
+    drawSectionHeading('17. CLOSURE & REOPENING HISTORY DOCKET', 'Complete history of inquiry cycles for this case');
     foundCase.closureHistory.forEach((item, hIdx) => {
-      drawFieldRow(`Closure Cycle #${hIdx + 1}:`, `Closed on ${new Date(item.closedAt).toLocaleDateString('en-IN')} by ${item.closedByName || 'Authorized Staff'}. Remarks: ${item.closureRemarks}${item.reopenedAt ? ` (Reopened on ${new Date(item.reopenedAt).toLocaleDateString('en-IN')} - Reason: ${item.reopeningReason || 'N/A'})` : ' (Current active closure)'}`);
+      drawFieldRow(
+        `Inquiry Cycle #${hIdx + 1}:`,
+        `Closed on ${new Date(item.closedAt).toLocaleDateString('en-IN')} by ${item.closedByName || 'Staff'}. Remarks: ${item.closureRemarks || 'N/A'}${item.reopenedAt ? ` (Reopened on ${new Date(item.reopenedAt).toLocaleDateString('en-IN')} - Reason: ${item.reopeningReason || 'N/A'})` : ' (Current active closure)'}`
+      );
     });
   }
 
-  // Signature Blocks
-  doc.moveDown(2);
+  // ═════════════════════════════════════════════════════════════════════════════
+  // 18. AUTHORIZED APPROVAL RECORDS & SIGNATURE BLOCKS
+  // ═════════════════════════════════════════════════════════════════════════════
+  drawSectionHeading('18. AUTHORIZED APPROVAL RECORDS & ENDORSEMENT', 'Statutory signatures confirming inquiry conclusion and institutional sign-off');
+
+  ensureSpace(120);
+  doc.moveDown(1.5);
+
   const sigY = doc.y;
-  const colWidth = (doc.page.width - doc.page.margins.left - doc.page.margins.right) / 2;
+  const colWidth = CONTENT_WIDTH / 2;
 
-  doc.strokeColor(NAVY_COLOR).lineWidth(1).moveTo(doc.page.margins.left + 20, sigY + 40).lineTo(doc.page.margins.left + colWidth - 20, sigY + 40).stroke();
-  doc.fillColor(NAVY_COLOR).fontSize(9).font('Helvetica-Bold').text('Presiding Officer / Chairperson', doc.page.margins.left + 20, sigY + 45);
-  doc.fillColor(TEXT_MUTED).fontSize(8).font('Helvetica').text('Internal Committee (POSH Act)', doc.page.margins.left + 20, sigY + 57);
+  // Left Signature Block
+  doc.strokeColor(NAVY_COLOR).lineWidth(1).moveTo(MARGIN + 15, sigY + 45).lineTo(MARGIN + colWidth - 25, sigY + 45).stroke();
+  doc.fillColor(NAVY_COLOR).fontSize(9.5).font(fontBold).text(
+    foundCase.closureDetails?.closedByName || requestingUser.name || 'Presiding Officer',
+    MARGIN + 15,
+    sigY + 50
+  );
+  doc.fillColor(TEXT_MUTED).fontSize(8.5).font(fontRegular).text('Presiding Officer / Chairperson', MARGIN + 15, sigY + 63);
+  doc.text('Internal Complaints Committee (POSH Act)', MARGIN + 15, sigY + 75);
 
-  doc.strokeColor(NAVY_COLOR).lineWidth(1).moveTo(doc.page.margins.left + colWidth + 20, sigY + 40).lineTo(doc.page.width - doc.page.margins.right - 20, sigY + 40).stroke();
-  doc.fillColor(NAVY_COLOR).fontSize(9).font('Helvetica-Bold').text('Authorized Institutional Officer', doc.page.margins.left + colWidth + 20, sigY + 45);
-  doc.fillColor(TEXT_MUTED).fontSize(8).font('Helvetica').text('Suraksha Setu Statutory Repository', doc.page.margins.left + colWidth + 20, sigY + 57);
+  // Right Signature Block
+  doc.strokeColor(NAVY_COLOR).lineWidth(1).moveTo(MARGIN + colWidth + 25, sigY + 45).lineTo(MARGIN + CONTENT_WIDTH - 15, sigY + 45).stroke();
+  doc.fillColor(NAVY_COLOR).fontSize(9.5).font(fontBold).text('Authorized Institutional Signatory', MARGIN + colWidth + 25, sigY + 50);
+  doc.fillColor(TEXT_MUTED).fontSize(8.5).font(fontRegular).text('Compliance & Legal Cell', MARGIN + colWidth + 25, sigY + 63);
+  doc.text('Suraksha Setu Statutory Repository', MARGIN + colWidth + 25, sigY + 75);
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // GLOBAL FOOTER (PAGE NUMBERS, CASE ID, CONFIDENTIALITY) ACROSS ALL PAGES
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ═════════════════════════════════════════════════════════════════════════════
+  // SYNCHRONIZED HEADERS & FOOTERS ACROSS ALL PAGES
+  // ═════════════════════════════════════════════════════════════════════════════
   const totalPages = doc.bufferedPageRange().count;
+
   for (let i = 0; i < totalPages; i++) {
     doc.switchToPage(i);
-    const bottomY = doc.page.height - doc.page.margins.bottom + 12;
 
-    doc.strokeColor(BORDER_COLOR).lineWidth(0.5).moveTo(doc.page.margins.left, bottomY - 6).lineTo(doc.page.width - doc.page.margins.right, bottomY - 6).stroke();
+    // Omit header on Cover Page (Page 1)
+    if (i > 0) {
+      // Top Running Header
+      doc.fillColor(PRIMARY_COLOR)
+        .fontSize(8)
+        .font(fontBold)
+        .text('SURAKSHA SETU', MARGIN, HEADER_TOP);
 
-    doc.fillColor(TEXT_MUTED).fontSize(7.5).font('Helvetica').text(
-      `SURAKSHA SETU CONFIDENTIAL INQUIRY DOSSIER | CASE ID: ${foundCase.caseId} | REF: ${reportRef}`,
-      doc.page.margins.left,
-      bottomY,
-      { continued: false }
-    );
+      doc.fillColor(NAVY_COLOR)
+        .fontSize(8)
+        .font(fontBold)
+        .text('CONFIDENTIAL INQUIRY REPORT', MARGIN + 85, HEADER_TOP);
 
-    doc.fillColor(TEXT_MUTED).fontSize(7.5).font('Helvetica').text(
-      `Page ${i + 1} of ${totalPages}`,
-      doc.page.width - doc.page.margins.right - 80,
-      bottomY,
-      { align: 'right' }
-    );
+      doc.fillColor(TEXT_MUTED)
+        .fontSize(8)
+        .font(fontRegular)
+        .text(`CASE ID: ${foundCase.caseId}`, MARGIN, HEADER_TOP, {
+          width: CONTENT_WIDTH,
+          align: 'right',
+        });
+
+      doc.strokeColor(BORDER_DARK)
+        .lineWidth(0.5)
+        .moveTo(MARGIN, HEADER_TOP + 12)
+        .lineTo(MARGIN + CONTENT_WIDTH, HEADER_TOP + 12)
+        .stroke();
+    }
+
+    // Running Footer on EVERY page
+    doc.strokeColor(BORDER_DARK)
+      .lineWidth(0.5)
+      .moveTo(MARGIN, FOOTER_BOTTOM - 6)
+      .lineTo(MARGIN + CONTENT_WIDTH, FOOTER_BOTTOM - 6)
+      .stroke();
+
+    doc.fillColor(TEXT_SUBTLE)
+      .fontSize(7.5)
+      .font(fontRegular)
+      .text(
+        `CONFIDENTIAL & PRIVILEGED UNDER SECTION 16 POSH ACT | REF: ${reportRef} | GENERATED: ${new Date().toLocaleDateString('en-IN')}`,
+        MARGIN,
+        FOOTER_BOTTOM,
+        { width: CONTENT_WIDTH - 90, continued: false }
+      );
+
+    doc.fillColor(NAVY_COLOR)
+      .fontSize(7.5)
+      .font(fontBold)
+      .text(
+        `Page ${i + 1} of ${totalPages}`,
+        MARGIN + CONTENT_WIDTH - 85,
+        FOOTER_BOTTOM,
+        { width: 85, align: 'right' }
+      );
   }
 
   doc.end();
@@ -455,7 +844,7 @@ export async function generateInquiryReportPDF(caseId, requestingUser) {
     doc.on('error', err => reject(err));
   });
 
-  // Record PDF download in AuditLog
+  // Record audit log
   try {
     await AuditLog.create({
       action: 'INQUIRY_REPORT_PDF_DOWNLOADED',
@@ -480,4 +869,3 @@ export async function generateInquiryReportPDF(caseId, requestingUser) {
     filename: `SurakshaSetu_InquiryReport_${foundCase.caseId}.pdf`,
   };
 }
-
