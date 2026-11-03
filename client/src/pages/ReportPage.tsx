@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -432,6 +433,15 @@ function PostSubmissionCounsellingModal({
     notes: '',
   });
 
+  // Body scroll lock effect
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
   const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.preferredDate || !formData.preferredTimeSlot) {
@@ -462,25 +472,27 @@ function PostSubmissionCounsellingModal({
     }
   };
 
-  return (
+  const modalContent = (
     <div
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(10, 22, 40, 0.7)',
-        backdropFilter: 'blur(6px)',
-        zIndex: 1000,
+        background: 'rgba(10, 22, 40, 0.72)',
+        backdropFilter: 'blur(4px)',
+        zIndex: 99999,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px',
+        padding: '16px',
         overflowY: 'auto',
       }}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.94, y: 16 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.94, y: 16 }}
+        key="post-sub-counselling-modal"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 12 }}
+        transition={{ duration: 0.28, ease: 'easeOut' }}
         style={{
           background: 'var(--color-card)',
           border: '1px solid var(--color-border)',
@@ -493,6 +505,7 @@ function PostSubmissionCounsellingModal({
           maxHeight: '90vh',
           display: 'flex',
           flexDirection: 'column',
+          margin: 'auto',
         }}
       >
         {/* Header Banner */}
@@ -579,6 +592,7 @@ function PostSubmissionCounsellingModal({
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: 16,
+                  cursor: 'pointer',
                   transition: 'transform 0.15s ease',
                 }}
               >
@@ -711,6 +725,7 @@ function PostSubmissionCounsellingModal({
                     fontWeight: 600,
                     textDecoration: 'underline',
                     padding: '8px 16px',
+                    cursor: 'pointer',
                   }}
                 >
                   Maybe Later (I'm okay for now)
@@ -877,6 +892,8 @@ function PostSubmissionCounsellingModal({
       </motion.div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
 
 // ─── SUCCESS SCREEN COMPONENT ────────────────────────────────────────────────
@@ -889,7 +906,7 @@ function SuccessScreen({
 }) {
   const [copied, setCopied] = useState<string | null>(null);
 
-  // Counselling modal state
+  // Counselling modal state: stable initialization with hasEverOpened ref safeguard
   const [counsellingModalOpen, setCounsellingModalOpen] = useState(requestedCounsellingInForm);
   const [counsellingConfirmedRef, setCounsellingConfirmedRef] = useState<string | null>(null);
 
@@ -901,21 +918,25 @@ function SuccessScreen({
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.96 }}
+      initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.25 }}
       style={{ textAlign: 'center', padding: '16px 0' }}
     >
-      {/* Post-Submission Automatic Counselling Support Prompt */}
-      {counsellingModalOpen && (
-        <PostSubmissionCounsellingModal
-          caseId={result.caseId}
-          onSkip={() => setCounsellingModalOpen(false)}
-          onSuccess={(refId) => {
-            setCounsellingConfirmedRef(refId);
-            setCounsellingModalOpen(false);
-          }}
-        />
-      )}
+      {/* Post-Submission Automatic Counselling Support Prompt rendered in Portal */}
+      <AnimatePresence>
+        {counsellingModalOpen && (
+          <PostSubmissionCounsellingModal
+            key="counselling-modal"
+            caseId={result.caseId}
+            onSkip={() => setCounsellingModalOpen(false)}
+            onSuccess={(refId) => {
+              setCounsellingConfirmedRef(refId);
+              setCounsellingModalOpen(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       <div
         style={{
